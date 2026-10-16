@@ -17,7 +17,7 @@ docker compose up -d --build
 Open `http://<host>:8787` and create the admin account (or set `ADMIN_USERNAME` /
 `ADMIN_PASSWORD` in the environment), then:
 
-1. **Settings → Plex**: server URL (the PMS itself, e.g. `http://10.10.0.x:32400`) and token →
+1. **Settings → Plex**: server URL (the PMS itself, e.g. `http://192.168.0.x:32400`) and token →
    *Test connection & load libraries* → tick the music sections to use.
 2. **System → Full sync**. Later syncs are incremental (hourly by default) with a nightly full
    sync to catch deletions.
