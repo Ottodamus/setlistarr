@@ -56,17 +56,17 @@ def _load_secret_key(config_dir: Path) -> str:
 @lru_cache(maxsize=1)
 def bootstrap() -> Bootstrap:
     default_dir = "/config" if Path("/config").is_dir() else "./config"
-    config_dir = Path(os.environ.get("SETLISTARR_CONFIG_DIR", default_dir)).expanduser().resolve()
+    config_dir = Path(os.environ.get("SETLISTARR_CONFIG_DIR") or default_dir).expanduser().resolve()
     config_dir.mkdir(parents=True, exist_ok=True)
-    db_path = Path(os.environ.get("SETLISTARR_DB", config_dir / "setlistarr.db")).expanduser()
+    db_path = Path(os.environ.get("SETLISTARR_DB") or config_dir / "setlistarr.db").expanduser()
     return Bootstrap(
         config_dir=config_dir,
         db_path=db_path,
         secret_key=_load_secret_key(config_dir),
-        log_level=os.environ.get("LOG_LEVEL", "INFO").upper(),
-        log_format=os.environ.get("LOG_FORMAT", "json").lower(),
-        host=os.environ.get("SETLISTARR_HOST", "0.0.0.0"),
-        port=int(os.environ.get("SETLISTARR_PORT", "8787")),
+        log_level=(os.environ.get("LOG_LEVEL") or "INFO").upper(),
+        log_format=(os.environ.get("LOG_FORMAT") or "json").lower(),
+        host=os.environ.get("SETLISTARR_HOST") or "0.0.0.0",
+        port=int(os.environ.get("SETLISTARR_PORT") or 8787),
         cookie_secure=_env_bool("SETLISTARR_COOKIE_SECURE", False),
     )
 

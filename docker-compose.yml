@@ -5,25 +5,26 @@ services:
     container_name: setlistarr
     restart: unless-stopped
     ports:
-      - 8787:8787
+      - ${SETLISTARR_PORT:-8787}:8787
     volumes:
-      - /opt/docker/setlistarr/config:/config
+      - ${CONFIG_PATH:-/opt/docker/setlistarr/config}:/config
+    # Every value can be set from Portainer's stack "Environment variables" section (or a .env
+    # file next to this one). Leave optional ones empty to configure them in the web UI instead.
     environment:
-      - TZ=America/Chicago
-      - PUID=1000
-      - PGID=1000
-      # Optional - anything set here is pinned and read-only in the Settings UI.
-      # - PLEX_URL=http://10.10.0.x:32400
-      # - PLEX_TOKEN=
-      # - LASTFM_API_KEY=
-      # - MUSICBRAINZ_CONTACT=you@example.com
-      # - ANTHROPIC_API_KEY=
-      # - OPENAI_API_KEY=
-      # Admin login; without these the first visit shows a setup page.
-      # - ADMIN_USERNAME=admin
-      # - ADMIN_PASSWORD=
-      # Set to 1 only if served over HTTPS (reverse proxy / tunnel).
-      # - SETLISTARR_COOKIE_SECURE=0
-      # Generated and stored in /config/secret_key if unset.
-      # - SETLISTARR_SECRET_KEY=
-      # - LOG_LEVEL=INFO
+      - TZ=${TZ:-America/Chicago}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      # Admin login. Leave both empty to create the account on the first-visit setup page.
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      # AI provider keys, used by providers whose key field is left blank in the UI.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Optional: pinning any of these makes the field read-only in Settings.
+      - PLEX_URL=${PLEX_URL:-}
+      - PLEX_TOKEN=${PLEX_TOKEN:-}
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
+      - MUSICBRAINZ_CONTACT=${MUSICBRAINZ_CONTACT:-}
+      # 1 only when served over HTTPS (reverse proxy / tunnel); plain-HTTP LAN needs 0.
+      - SETLISTARR_COOKIE_SECURE=${SETLISTARR_COOKIE_SECURE:-0}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}

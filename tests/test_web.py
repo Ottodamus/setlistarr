@@ -73,3 +73,19 @@ def test_job_failure_is_recorded_not_raised(conn):
 def test_trigger_requires_plex(client):
     r = client.post("/system/jobs/sync")
     assert "Configure Plex" in r.text
+
+
+def test_empty_env_values_from_compose_are_treated_as_unset(monkeypatch, conn):
+    """docker-compose `${VAR:-}` passes empty strings; none of them may break startup or pin a setting."""
+    from setlistarr import config
+    from setlistarr.config import Settings
+
+    for var in ("LOG_LEVEL", "LOG_FORMAT", "SETLISTARR_HOST", "SETLISTARR_PORT", "PLEX_URL", "PLEX_TOKEN",
+                "ADMIN_USERNAME", "ADMIN_PASSWORD", "SETLISTARR_SECRET_KEY"):
+        monkeypatch.setenv(var, "")
+    config.bootstrap.cache_clear()
+    b = config.bootstrap()
+    assert (b.log_level, b.port, b.host) == ("INFO", 8787, "0.0.0.0") and b.secret_key
+    assert Settings(conn).source("plex_url") != "env"
+    with TestClient(create_app()) as c:
+        assert c.get("/health").status_code == 200
