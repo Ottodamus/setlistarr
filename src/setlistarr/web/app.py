@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from ..config import bootstrap
-from ..core.db import connect, migrate
+from ..core.db import connect, migrate, restrict_permissions
 from ..core.plex.client import PlexError
 from ..generation.runner import mark_interrupted as mark_generations_interrupted
 from ..logs import get_logger, setup_logging
@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
         auth.ensure_env_admin(conn)
     finally:
         conn.close()
+    restrict_permissions(b.db_path)
     log.info("startup", db=str(b.db_path), schema_version=version)
 
     app.state.scheduler = Scheduler()

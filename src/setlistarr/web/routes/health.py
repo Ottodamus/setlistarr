@@ -1,7 +1,8 @@
 """GET /health - liveness plus dependency status.
 
 Returns 200 whenever the app and its DB work, even if Plex is down: a Plex outage
-shouldn't make Docker restart-loop this container. Dependency state is in the body.
+shouldn't make Docker restart-loop this container. Unauthenticated callers (Docker's
+healthcheck, monitoring) only get {"status": ...}; details need a logged-in session.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from ... import __version__
 from ...config import Settings
 from ...core.db import latest_version
 from ...core.plex.client import PlexClient, PlexError
+from ..auth import auth_disabled
 from ..deps import get_conn
 
 router = APIRouter()
@@ -48,6 +50,8 @@ def health(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
         last_sync = conn.execute("SELECT MAX(last_sync_at) FROM libraries").fetchone()[0]
         db = {"status": "ok" if schema == latest_version() else "migrating", "schema_version": schema}
     except sqlite3.Error as e:
+        if not _detailed(request):
+            return JSONResponse({"status": "error"}, 503)
         return JSONResponse({"status": "error", "db": {"status": "error", "error": str(e)}}, 503)
 
     plex = plex_status(Settings(conn))
@@ -60,4 +64,10 @@ def health(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
         "scheduler": "running" if sched and sched.running else "stopped",
         "last_sync": last_sync,
     }
+    if not _detailed(request):
+        return JSONResponse({"status": body["status"]})
     return JSONResponse(body)
+
+
+def _detailed(request: Request) -> bool:
+    return auth_disabled() or bool(request.session.get("user"))

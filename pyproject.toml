@@ -2,6 +2,8 @@
 name = "setlistarr"
 version = "0.1.0"
 description = "AI-built Plex music playlists, grounded in the tracks you actually own"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

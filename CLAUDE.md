@@ -1,18 +1,15 @@
-# Setlistarr - working notes for Claude
+# Setlistarr - architecture and rules for contributors (and AI coding assistants)
 
 Self-hosted, arr-style web app: natural-language prompt -> AI-built Plex music playlist using
 **only tracks that exist in the user's library** -> pushed to Plex (consumed in Plexamp).
-Successor to `../plex-dj/` (frozen reference copy; don't edit or delete it without asking).
+It grew out of an earlier CLI/MCP tool ("plex-dj"), whose tool layer and schema it inherits.
 
-Plan of record: `~/.claude/plans/twinkly-orbiting-harbor.md`. Phases:
-1. Plex sync + SQLite cache + library UI  **(done)**
-2. Provider abstraction + tool-calling generation + draft preview  **(done)**
-3. Push to Plex + draft editing + history  **(done)**
-4. Recipes / scheduled refresh, auth, polish  **(done)**
+Put machine-specific notes (hosts, paths, credentials locations) in `CLAUDE.local.md`, which is
+git-ignored - never in this file.
 
 ## Layout
 - `src/setlistarr/core/` - DB, migrations, Plex client/sync/playlists, enrichment, LLM tool layer.
-  Ported from plex-dj; this is the shared core for web, CLI and MCP.
+  The shared core for web, CLI and MCP.
 - `services/` - operations used by web + scheduler + CLI (`jobs.run_job`, `library.do_sync`, browsing).
 - `web/` - FastAPI + Jinja + HTMX. `routes/` one module per page; `templates/partials/` are HTMX fragments.
 - `llm/` - provider adapters behind one neutral interface (`base.Provider.chat`):
@@ -90,12 +87,11 @@ Plan of record: `~/.claude/plans/twinkly-orbiting-harbor.md`. Phases:
   overlap; then a count check escalates to full sync if Plex has fewer tracks than we do.
 
 ## Dev loop
-- Venv lives **outside Nextcloud**: `~/.venvs/setlistarr` (`pip install -e '.[dev]'`).
-- Tests: `~/.venvs/setlistarr/bin/python -m pytest -q -p no:cacheprovider` (no cache dir in Nextcloud).
+- `python -m venv .venv && .venv/bin/pip install -e '.[dev]'`
+- Tests: `.venv/bin/python -m pytest -q`. No network or API keys needed.
   Fake Plex = `tests/fakes/fake_plex.py` on pytest-httpserver; extend it when adding endpoints.
   Fake LLM = `tests/fakes/scripted_provider.py` (inject via `manager.start(..., inject={"provider": p})`).
-- Run locally: `SETLISTARR_CONFIG_DIR=/tmp/pa LOG_FORMAT=console setlistarr serve`.
-- Docker build/run host details (machine-specific): see `CLAUDE.local.md` (git-ignored).
+- Run locally: `SETLISTARR_CONFIG_DIR=/tmp/setlistarr SETLISTARR_AUTH_DISABLED=1 LOG_FORMAT=console setlistarr serve`.
 
 ## Conventions
 - Match surrounding style: type hints, `from __future__ import annotations`, small modules,
@@ -103,4 +99,4 @@ Plan of record: `~/.claude/plans/twinkly-orbiting-harbor.md`. Phases:
 - UI: server-rendered Jinja; HTMX for partial updates (`is_htmx(request)` -> return a partial).
   Vendored JS in `web/static/vendor/` (htmx 2.0.4, htmx-ext-sse 2.2.2, SortableJS 1.15.6) - no CDN, no Node.
 - Colors are CSS custom properties in `web/static/app.css`; dark only.
-- Errors shown to the user are `PlexError` (and phase 2: provider errors) messages, never tracebacks.
+- Errors shown to the user are `PlexError` / `ProviderError` messages, never tracebacks.

@@ -23,9 +23,9 @@ def test_first_run_setup_then_login_flow(client):
     r = client.get("/library", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/setup"
 
-    r = client.post("/setup", data={"username": "adam", "password": "short", "password2": "short"})
+    r = client.post("/setup", data={"username": "admin", "password": "short", "password2": "short"})
     assert r.status_code == 400 and "at least 8" in r.text
-    r = client.post("/setup", data={"username": "adam", "password": "longenough1", "password2": "longenough1"},
+    r = client.post("/setup", data={"username": "admin", "password": "longenough1", "password2": "longenough1"},
                     follow_redirects=False)
     assert r.status_code == 303 and client.get("/library").status_code == 200  # logged in by setup
     # setup is one-shot
@@ -39,15 +39,15 @@ def test_first_run_setup_then_login_flow(client):
     r = client.get("/system", headers={"HX-Request": "true"}, follow_redirects=False)
     assert r.status_code == 401 and r.headers["HX-Redirect"].startswith("/login")
 
-    assert client.post("/login", data={"username": "adam", "password": "nope"}).status_code == 401
-    r = client.post("/login", data={"username": "adam", "password": "longenough1", "next": "//evil.com"},
+    assert client.post("/login", data={"username": "admin", "password": "nope"}).status_code == 401
+    r = client.post("/login", data={"username": "admin", "password": "longenough1", "next": "//evil.com"},
                     follow_redirects=False)
     assert r.headers["location"] == "/"  # open-redirect blocked
     assert client.get("/stats").status_code == 200
 
 
 def test_cross_origin_posts_blocked(client):
-    client.post("/setup", data={"username": "adam", "password": "longenough1", "password2": "longenough1"})
+    client.post("/setup", data={"username": "admin", "password": "longenough1", "password2": "longenough1"})
     r = client.post("/settings", data={}, headers={"Origin": "http://evil.example"})
     assert r.status_code == 403
     r = client.post("/settings", data={"sync_interval_minutes": "30"}, headers={"Origin": "http://setlistarr.lan"},
@@ -57,10 +57,17 @@ def test_cross_origin_posts_blocked(client):
 
 def test_env_pinned_admin(monkeypatch, conn):
     monkeypatch.delenv("SETLISTARR_AUTH_DISABLED")
-    monkeypatch.setenv("ADMIN_USERNAME", "adam")
+    monkeypatch.setenv("ADMIN_USERNAME", "admin")
     monkeypatch.setenv("ADMIN_PASSWORD", "fromtheenv1")
     with TestClient(create_app()) as c:
         assert c.get("/setup", follow_redirects=False).headers["location"] == "/login"
-        c.post("/login", data={"username": "adam", "password": "fromtheenv1"})
+        c.post("/login", data={"username": "admin", "password": "fromtheenv1"})
         r = c.post("/settings/password", data={"current": "fromtheenv1", "new": "newpass123", "new2": "newpass123"})
         assert "set by ADMIN_PASSWORD" in r.text
+
+
+def test_health_hides_details_until_logged_in(client):
+    assert client.get("/health").json() == {"status": "degraded"}  # no Plex configured
+    client.post("/setup", data={"username": "admin", "password": "longenough1", "password2": "longenough1"})
+    body = client.get("/health").json()
+    assert body["db"]["status"] == "ok" and "plex" in body

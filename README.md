@@ -11,11 +11,17 @@ scheduled recipes, single-admin login.
 ## Run
 
 ```bash
+git clone https://github.com/Ottodamus/setlistarr.git && cd setlistarr
 docker compose up -d --build
 ```
 
-Open `http://<host>:8787` and create the admin account (or set `ADMIN_USERNAME` /
-`ADMIN_PASSWORD` in the environment), then:
+Or in Portainer: *Stacks → Add stack → Repository*, URL `https://github.com/Ottodamus/setlistarr`,
+compose path `docker-compose.yml`, and set any variables below under *Environment variables*.
+
+**Set `ADMIN_USERNAME` / `ADMIN_PASSWORD` before the first start**, or open the app right away:
+until an admin account exists, whoever reaches the setup page first creates it.
+
+Then open `http://<host>:8787`:
 
 1. **Settings → Plex**: server URL (the PMS itself, e.g. `http://192.168.0.x:32400`) and token →
    *Test connection & load libraries* → tick the music sections to use.
@@ -65,7 +71,23 @@ Persistent state lives in `/config` (`setlistarr.db`, `secret_key`).
 | `SETLISTARR_PORT` | default 8787 |
 | `LOG_LEVEL`, `LOG_FORMAT` | `INFO`; `json` (default) or `console` |
 
-`GET /health` → JSON with DB, Plex and scheduler status (200 unless the app itself is broken).
+`GET /health` → `{"status": "ok" | "degraded" | "error"}` (200 unless the app itself is broken;
+signed-in users get DB, Plex and scheduler details).
+
+## Security
+
+Setlistarr is built for a trusted home network.
+
+- **Don't port-forward it to the internet.** For remote access put it behind a VPN (WireGuard,
+  Tailscale) or a reverse proxy with HTTPS and set `SETLISTARR_COOKIE_SECURE=1`. Login protection
+  is a single admin account with a basic slowdown on failed attempts.
+- **Secrets live in `/config/setlistarr.db`** (Plex token, AI API keys - in plain text, like most
+  *arr apps). The file is created owner-only (mode 600); keep the `/config` volume private and out
+  of shared backups. Keys set as environment variables are never written to the DB.
+- **Anyone who can sign in can spend your AI credits.** Each generation and each recipe run on a
+  paid provider costs money; History shows the running total. Local Ollama models are free.
+- Setlistarr only ever modifies Plex playlists it created itself; nothing is matched or deleted
+  by title.
 
 ## CLI / MCP
 
@@ -82,7 +104,17 @@ setlistarr mcp               # MCP stdio server over the same DB, for Claude Des
 ## Development
 
 ```bash
-python -m venv ~/.venvs/setlistarr && ~/.venvs/setlistarr/bin/pip install -e '.[dev]'
-~/.venvs/setlistarr/bin/python -m pytest -q
-SETLISTARR_CONFIG_DIR=/tmp/pa LOG_FORMAT=console ~/.venvs/setlistarr/bin/setlistarr serve
+python -m venv .venv && .venv/bin/pip install -e '.[dev]'
+.venv/bin/python -m pytest -q
+SETLISTARR_CONFIG_DIR=/tmp/setlistarr SETLISTARR_AUTH_DISABLED=1 LOG_FORMAT=console .venv/bin/setlistarr serve
 ```
+
+Tests use a fake Plex server and a scripted fake LLM - no network, no API keys.
+`CLAUDE.md` documents the architecture and the rules the code relies on.
+
+Setlistarr was built with AI assistance (Anthropic's Claude); every change is covered by the
+test suite and was verified against a real Plex server.
+
+## License
+
+[MIT](LICENSE)

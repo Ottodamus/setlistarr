@@ -11,7 +11,7 @@ services:
     # Every value can be set from Portainer's stack "Environment variables" section (or a .env
     # file next to this one). Leave optional ones empty to configure them in the web UI instead.
     environment:
-      - TZ=${TZ:-America/Chicago}
+      - TZ=${TZ:-UTC}
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       # Admin login. Leave both empty to create the account on the first-visit setup page.

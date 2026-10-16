@@ -25,6 +25,17 @@ def connect(db_path: Path | str) -> sqlite3.Connection:
     return conn
 
 
+def restrict_permissions(db_path: Path | str) -> None:
+    """The DB holds the Plex token and API keys: owner-only, including WAL/SHM side files."""
+    base = Path(db_path)
+    for p in (base, base.with_name(base.name + "-wal"), base.with_name(base.name + "-shm")):
+        try:
+            if p.exists():
+                p.chmod(0o600)
+        except OSError:
+            pass  # e.g. a read-only or foreign-owned mount; not worth failing startup over
+
+
 def _migrations() -> list[tuple[int, str, str]]:
     out = []
     for entry in resources.files("setlistarr.core").joinpath("migrations").iterdir():
