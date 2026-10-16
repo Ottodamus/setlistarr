@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}System{% endblock %}
+{% block heading %}System{% endblock %}
+{% block toolbar %}
+<div class="spacer"></div>
+<button class="btn" hx-post="/system/jobs/sync" hx-target="#jobs">Sync now</button>
+<button class="btn" hx-post="/system/jobs/sync-full" hx-target="#jobs"
+        title="Re-reads everything and detects deletions">Full sync</button>
+<button class="btn" hx-post="/system/jobs/enrich" hx-target="#jobs">Enrich tags</button>
+{% endblock %}
+{% block content %}
+<div class="grid">
+  <div class="card">
+    <h2>Plex</h2>
+    {% if plex.status == 'ok' %}<span class="badge ok">connected</span> {{ plex.server }} · Plex {{ plex.version }}
+    {% elif plex.status == 'unconfigured' %}<span class="badge warn">not configured</span> <a href="/settings">Set up</a>
+    {% else %}<span class="badge error">unreachable</span> <span class="dim">{{ plex.error }}</span>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Libraries</h2>
+    {% for l in libraries if l.enabled %}
+      <div>{{ l.name }} · {{ l.track_count|num }} tracks · <span class="dim">synced {{ l.last_sync_at|ago }}, full {{ l.last_full_sync_at|ago }}</span></div>
+    {% else %}<span class="dim">No libraries enabled.</span>{% endfor %}
+  </div>
+</div>
+<div class="card">
+  <h2>Jobs</h2>
+  <div id="jobs">{% include "partials/jobs_table.html" %}</div>
+</div>
+{% endblock %}

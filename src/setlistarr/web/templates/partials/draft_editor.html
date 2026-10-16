@@ -1,0 +1,99 @@
+{% set c = d.constraints %}
+<div id="draft" class="draft-editor">
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+  {% if pushed %}
+  <div class="alert alert-ok">
+    {{ {'created': 'Created', 'replaced': 'Replaced', 'recreated': 'Re-created'}[pushed.action] }} <b>{{ pushed.title }}</b>
+    in Plex with {{ pushed.track_count }} tracks.
+    {% if pushed.action == 'recreated' %}The old playlist had been deleted in Plex, so a new one was made.{% endif %}
+    {% if pushed.skipped %}Skipped {{ pushed.skipped|length }} track(s) no longer in the library.{% endif %}
+    <a href="{{ pushed.url }}" target="_blank" rel="noopener">Open in Plex ↗</a>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <form hx-post="/drafts/{{ d.id }}/meta" hx-target="#draft" hx-swap="outerHTML" class="draft-meta">
+      <input type="text" name="title" value="{{ d.title }}" required class="draft-title" aria-label="Playlist title">
+      <textarea name="description" rows="2" placeholder="Description (becomes the Plex playlist summary)" aria-label="Description">{{ d.description or '' }}</textarea>
+      <button class="btn" type="submit">Save title &amp; description</button>
+    </form>
+    <div class="tiles" style="margin:14px 0 0">
+      <div class="tile"><div class="v">{{ d.tracks|length }}</div><div class="k">Tracks</div></div>
+      <div class="tile"><div class="v">{{ d.total_ms|duration }}</div><div class="k">Runtime · target ~{{ c.target|int }} min</div></div>
+      <div class="tile"><div class="v">{{ d.artist_count }}</div><div class="k">Artists · max {{ c.per_artist }} each</div></div>
+      <div class="tile"><div class="v">{{ d.status }}</div><div class="k">{% if d.pushes %}last push {{ d.pushes[0].pushed_at|ago }}{% else %}not pushed yet{% endif %}</div></div>
+    </div>
+    {% if d.warnings %}<ul class="adjustments">{% for w in d.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+
+  <div class="card">
+    <form class="sortable-form" hx-post="/drafts/{{ d.id }}/reorder" hx-trigger="end" hx-target="#draft" hx-swap="outerHTML">
+    <table class="draft-table">
+      <thead><tr><th></th><th class="num">#</th><th>Title</th><th>Artist</th><th class="hide-sm">Album</th><th class="num">Year</th><th class="num">Length</th><th></th></tr></thead>
+      <tbody class="sortable-body">
+      {% for t in d.tracks %}
+        <tr class="{{ 'missing' if t.missing }} {{ 'locked' if t.locked }}">
+          <td class="handle" title="Drag to reorder">⠿<input type="hidden" name="key" value="{{ t.plex_key }}"></td>
+          <td class="num dim">{{ loop.index }}</td>
+          <td>{{ t.title }}
+            {% if t.missing %}<span class="badge error">gone from Plex</span>{% endif %}
+            {% if t.source == 'backfill' %}<span class="badge" title="Added by the validator from the model's own search results">backfill</span>{% endif %}
+            {% if t.source == 'user' %}<span class="badge">yours</span>{% endif %}</td>
+          <td>{{ t.artist }}</td>
+          <td class="hide-sm dim">{{ t.album }}</td>
+          <td class="num">{{ t.year or '' }}</td>
+          <td class="num">{{ t.duration_ms|duration }}</td>
+          <td class="nowrap row-actions">
+            <button type="button" class="icon-btn {{ 'on' if t.locked }}" title="{{ 'Locked - kept on regenerate' if t.locked else 'Lock: keep this track when regenerating' }}"
+                    aria-label="{{ 'Unlock' if t.locked else 'Lock' }} {{ t.title }}"
+                    hx-post="/drafts/{{ d.id }}/lock" hx-vals='{"plex_key": "{{ t.plex_key }}"}' hx-target="#draft" hx-swap="outerHTML">{{ '🔒' if t.locked else '🔓' }}</button>
+            <button type="button" class="icon-btn" title="Remove" aria-label="Remove {{ t.title }}"
+                    hx-post="/drafts/{{ d.id }}/remove" hx-vals='{"plex_key": "{{ t.plex_key }}"}' hx-target="#draft" hx-swap="outerHTML">✕</button>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" class="empty">The draft is empty - add tracks below or regenerate.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </form>
+    <div style="margin-top:14px">
+      <input type="search" name="q" placeholder="Add a track: search your library…" style="width:100%;max-width:420px"
+             hx-get="/drafts/{{ d.id }}/search" hx-trigger="input changed delay:300ms, search" hx-target="#draft-search-{{ d.id }}">
+      <div id="draft-search-{{ d.id }}"></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Push to Plex</h2>
+      <form hx-post="/drafts/{{ d.id }}/push" hx-target="#draft" hx-swap="outerHTML" hx-indicator="#push-spin-{{ d.id }}">
+        <div class="form-row"><label>Playlist title</label><div><input type="text" name="title" value="{{ d.title }}" required></div></div>
+        <div class="form-row"><label>Destination</label>
+          <div><select name="target">
+            <option value="new" {{ 'selected' if default_target == 'new' }}>Create a new playlist</option>
+            {% for m in managed %}<option value="{{ m.plex_playlist_key }}" {{ 'selected' if default_target == m.plex_playlist_key }}>Replace “{{ m.title }}” ({{ m.track_count }} tracks)</option>{% endfor %}
+          </select>
+          <div class="help">Replacing keeps the same Plex playlist (pins and artwork survive). Only playlists Setlistarr created are listed.</div></div></div>
+        <input type="hidden" name="summary" value="{{ d.description or '' }}">
+        <button class="btn primary" type="submit" {{ 'disabled' if not d.tracks }}>Push</button> <span id="push-spin-{{ d.id }}" class="spin"></span>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Regenerate</h2>
+      {% set n_locked = d.tracks|selectattr('locked')|list|length %}
+      <form hx-post="/drafts/{{ d.id }}/regenerate" hx-indicator="#regen-spin-{{ d.id }}">
+        <textarea name="prompt" rows="2" style="width:100%">{{ d.generation.prompt or '' }}</textarea>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <select name="provider_id">
+            {% for p in providers %}<option value="{{ p.id }}" {{ 'selected' if p.id == d.generation.provider_id }}>{{ p.name }} · {{ p.model }}</option>{% endfor %}
+          </select>
+          <button class="btn" type="submit">{% if n_locked %}Regenerate around {{ n_locked }} locked track{{ 's' if n_locked != 1 }}{% else %}Regenerate{% endif %}</button>
+          <span id="regen-spin-{{ d.id }}" class="spin"></span>
+        </div>
+        <div class="help small dim" style="margin-top:6px">Makes a new draft; this one stays in History. Tweak the prompt to steer it.
+          Want this refreshed automatically? <a href="/recipes/new?draft_id={{ d.id }}">Save as recipe</a>.</div>
+      </form>
+    </div>
+  </div>
+</div>

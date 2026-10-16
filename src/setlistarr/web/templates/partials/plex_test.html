@@ -1,0 +1,7 @@
+{% if ok %}
+<div class="alert alert-ok">Connected to <b>{{ ident.name }}</b> (Plex {{ ident.version }}). URL and token saved.
+  Found {{ libraries|length }} music librar{{ 'y' if libraries|length == 1 else 'ies' }}.</div>
+{% else %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+<div id="libraries" hx-swap-oob="true">{% include "partials/libraries.html" %}</div>

@@ -1,0 +1,21 @@
+{% if libraries %}
+<form hx-post="/settings/libraries" hx-target="#libraries">
+  <table>
+    <thead><tr><th>Use</th><th>Section</th><th class="num">Synced tracks</th><th>Last sync</th></tr></thead>
+    <tbody>
+    {% for l in libraries %}
+      <tr>
+        <td><input type="checkbox" name="enabled" value="{{ l.section_id }}" {{ 'checked' if l.enabled }}></td>
+        <td>{{ l.name }} <span class="dim small">#{{ l.section_id }}</span></td>
+        <td class="num">{{ l.track_count|num }}</td>
+        <td class="dim">{{ l.last_sync_at|ago }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div style="margin-top:12px"><button class="btn" type="submit">Save libraries</button>
+  {% if saved %}<span class="badge ok">saved</span>{% endif %}</div>
+</form>
+{% else %}
+<div class="dim">No music libraries loaded. Use "Test connection" above.</div>
+{% endif %}

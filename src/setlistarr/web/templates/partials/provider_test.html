@@ -1,0 +1,9 @@
+{% if ok %}
+<div class="alert {{ 'alert-ok' if has_model else 'alert-warn' }}" style="margin:8px 0">
+  Connected · {{ models|length }} model{{ 's' if models|length != 1 }} available.
+  {% if has_model %}<b>{{ cfg.model }}</b> is available.{% else %}<b>{{ cfg.model }}</b> is not in the list{% if models %} - e.g. {{ models[:6]|join(', ') }}{% endif %}.{% endif %}
+</div>
+<datalist id="models-{{ cfg.id }}">{% for m in models %}<option value="{{ m }}">{% endfor %}</datalist>
+{% else %}
+<div class="alert alert-error" style="margin:8px 0">{{ error }}</div>
+{% endif %}

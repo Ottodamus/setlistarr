@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+{% block heading %}History{% endblock %}
+{% block toolbar %}
+<form method="get" action="/history">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">All runs</option>
+    {% for s in ['ok', 'error', 'cancelled', 'interrupted', 'running'] %}<option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>{% endfor %}
+  </select>
+</form>
+<div class="spacer"></div>
+<span class="dim small">AI spend: <b>${{ '%.2f'|format(spend.all_time) }}</b> all time · ${{ '%.2f'|format(spend.last_30d) }} last 30 days{% if spend.unpriced %} · {{ spend.unpriced }} unpriced run(s){% endif %}</span>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Playlists in Plex</h2>
+  {% if managed %}
+  <table>
+    <thead><tr><th>Playlist</th><th class="num">Tracks</th><th>Updated</th><th>From draft</th><th></th></tr></thead>
+    <tbody>
+    {% for m in managed %}
+      <tr>
+        <td>{{ m.title }}{% if m.recipe_id %} <span class="badge">recipe</span>{% endif %}</td>
+        <td class="num">{{ m.track_count }}</td>
+        <td class="dim">{{ m.updated_at|ago }}</td>
+        <td>{% if m.last_draft_id %}<a href="/drafts/{{ m.last_draft_id }}">#{{ m.last_draft_id }}</a>{% endif %}</td>
+        <td class="dim small mono">ratingKey {{ m.plex_playlist_key }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="dim small" style="margin-top:8px">Only these playlists are ever modified by Setlistarr.</div>
+  {% else %}<div class="dim">Nothing pushed yet.</div>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Generations</h2>
+  {% if rows %}
+  <table>
+    <thead><tr><th>When</th><th>Prompt</th><th>Result</th><th class="hide-sm">Provider</th><th class="num hide-sm">Tokens</th><th class="num">Cost</th><th class="num hide-sm">Time</th></tr></thead>
+    <tbody>
+    {% for g in rows %}
+      <tr>
+        <td class="dim small nowrap">{{ g.created_at|ago }}</td>
+        <td><a href="/generate/{{ g.id }}">{{ g.prompt[:80] }}{% if g.prompt|length > 80 %}…{% endif %}</a>
+          {% if g.parent_draft_id %}<span class="badge" title="Regenerated from draft #{{ g.parent_draft_id }}">regen</span>{% endif %}</td>
+        <td>{% if g.status == 'ok' %}{{ g.draft_title }} <span class="dim small">· {{ g.tracks }} tracks</span>
+              {% if g.pushed_to %}<span class="badge ok" title="Pushed to {{ g.pushed_to }}">pushed</span>{% endif %}
+            {% else %}<span class="badge {{ g.status }}" title="{{ g.error or '' }}">{{ g.status }}</span>{% endif %}</td>
+        <td class="hide-sm dim small">{{ g.provider_name }} · {{ g.model }} · {{ g.mode_used or g.mode_requested }}</td>
+        <td class="num hide-sm small">{{ (g.input_tokens + g.cache_read_tokens + g.cache_write_tokens)|num }} / {{ g.output_tokens|num }}</td>
+        <td class="num small">{% if g.cost_usd is none %}<span class="dim">?</span>{% elif g.cost_usd == 0 %}<span class="dim">free</span>{% else %}${{ '%.3f'|format(g.cost_usd) }}{% endif %}</td>
+        <td class="num hide-sm small">{{ ((g.duration_ms or 0) / 1000)|round|int }}s</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="pager">
+    {% if page > 1 %}<a class="btn" href="/history?page={{ page - 1 }}&status={{ status }}">‹ Newer</a>{% endif %}
+    <span class="dim">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a class="btn" href="/history?page={{ page + 1 }}&status={{ status }}">Older ›</a>{% endif %}
+  </div>
+  {% else %}<div class="dim">No generations yet.</div>{% endif %}
+</div>
+{% endblock %}

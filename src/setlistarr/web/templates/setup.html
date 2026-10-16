@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Set up · Setlistarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+</head>
+<body class="auth-page">
+  <form method="post" action="/setup" class="card auth-card">
+    <div class="brand">Setlist<span>arr</span></div>
+    <p class="dim small" style="margin:0">Create the admin account. (Or set ADMIN_USERNAME / ADMIN_PASSWORD in the container's environment.)</p>
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    <label>Username<input type="text" name="username" autocomplete="username" required autofocus></label>
+    <label>Password (8+ characters)<input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+    <label>Confirm password<input type="password" name="password2" autocomplete="new-password" minlength="8" required></label>
+    <button class="btn primary" type="submit">Create account</button>
+  </form>
+</body>
+</html>

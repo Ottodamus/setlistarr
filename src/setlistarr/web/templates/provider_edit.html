@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ cfg.name }}{% endblock %}
+{% block heading %}Edit provider{% endblock %}
+{% block content %}
+<div class="card"><div id="provider-form">{% include "partials/provider_form.html" %}</div></div>
+<a href="/settings/providers">‹ Back</a>
+{% endblock %}

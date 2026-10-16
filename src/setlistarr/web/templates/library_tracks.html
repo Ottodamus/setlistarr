@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Tracks{% endblock %}
+{% block heading %}Tracks{% endblock %}
+{% block toolbar %}
+<form id="filters" class="toolbar-form" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"
+      hx-get="/library" hx-target="#results" hx-push-url="true" hx-indicator="#spin"
+      hx-trigger="input changed delay:300ms from:input[name=q], input changed delay:400ms from:input[name=tag], change from:select">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search title, artist, album" style="width:260px">
+  <input type="text" name="tag" value="{{ tag }}" placeholder="Tag (e.g. shoegaze)" style="width:170px">
+  <select name="decade">
+    <option value="">Any decade</option>
+    {% for d in decades %}<option value="{{ d }}" {{ 'selected' if decade == d }}>{{ d }}s</option>{% endfor %}
+  </select>
+  <select name="sort">
+    {% for s in sorts %}<option value="{{ s }}" {{ 'selected' if sort == s }}>Sort: {{ s.replace('_', ' ') }}</option>{% endfor %}
+  </select>
+  <span id="spin" class="spin"></span>
+</form>
+<div class="spacer"></div>
+<span class="dim">{{ total_tracks|num }} tracks</span>
+{% endblock %}
+{% block content %}
+{% if not configured %}
+<div class="alert alert-warn">No library synced yet. Set up Plex in <a href="/settings">Settings</a>, then run a sync from <a href="/system">System</a>.</div>
+{% endif %}
+<div id="results">{% include "partials/tracks_table.html" %}</div>
+{% endblock %}

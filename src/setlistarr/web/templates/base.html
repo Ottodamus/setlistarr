@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Setlistarr{% endblock %} · Setlistarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+  <script src="/static/vendor/htmx.min.js"></script>
+  <script src="/static/vendor/htmx-sse.js"></script>
+  <script src="/static/vendor/Sortable.min.js"></script>
+  <script src="/static/app.js?v={{ version }}" defer></script>
+</head>
+<body>
+{% set path = request.url.path %}
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">Setlist<span>arr</span></div>
+    <nav class="nav">
+      <a href="/" class="{{ 'active' if path == '/' }}">Home</a>
+      <div class="section">Make</div>
+      <a href="/generate" class="{{ 'active' if path.startswith('/generate') }}">Generate</a>
+      <a href="/recipes" class="{{ 'active' if path.startswith('/recipes') }}">Recipes</a>
+      <a href="/history" class="{{ 'active' if path.startswith('/history') }}">History</a>
+      <div class="section">Library</div>
+      <a href="/library" class="{{ 'active' if path == '/library' }}">Tracks</a>
+      <a href="/library/artists" class="{{ 'active' if path.startswith('/library/artists') }}">Artists</a>
+      <a href="/stats" class="{{ 'active' if path.startswith('/stats') }}">Stats</a>
+      <div class="section">Admin</div>
+      <a href="/settings" class="{{ 'active' if path == '/settings' }}">Settings</a>
+      <a href="/settings/providers" class="{{ 'active' if path.startswith('/settings/providers') }}">AI providers</a>
+      <a href="/system" class="{{ 'active' if path.startswith('/system') }}">System</a>
+    </nav>
+    <div class="foot">
+      v{{ version }}
+      {% if request.session and request.session.get('user') %}
+      <form method="post" action="/logout" style="margin-top:6px">{{ request.session.get('user') }} · <button class="linkish" type="submit">sign out</button></form>
+      {% endif %}
+    </div>
+  </aside>
+  <main class="main">
+    <div class="toolbar">
+      <h1>{% block heading %}{% endblock %}</h1>
+      {% block toolbar %}{% endblock %}
+    </div>
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+</body>
+</html>

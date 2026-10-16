@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Stats{% endblock %}
+{% block heading %}Library stats{% endblock %}
+{% block content %}
+{% set t = s.totals %}
+<div class="tiles">
+  <div class="tile"><div class="v">{{ t.tracks|num }}</div><div class="k">Tracks</div></div>
+  <div class="tile"><div class="v">{{ t.artists|num }}</div><div class="k">Artists</div></div>
+  <div class="tile"><div class="v">{{ t.albums|num }}</div><div class="k">Albums</div></div>
+  <div class="tile"><div class="v">{{ t.duration_ms|hours }}</div><div class="k">Total runtime</div></div>
+  <div class="tile"><div class="v">{{ t.never_played|num }}</div><div class="k">Never played</div></div>
+  <div class="tile"><div class="v">{{ t.rated_4plus|num }}</div><div class="k">Rated 4★+</div></div>
+  <div class="tile"><div class="v">{% if t.tracks %}{{ (100 * (t.enriched or 0) / t.tracks)|round|int }}%{% else %}-{% endif %}</div><div class="k">Last.fm enriched</div></div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Tracks by decade</h2>
+    <div class="bars">
+      {% for d in s.decades if d.decade %}
+      <div class="row"><span class="dim">{{ d.decade }}s</span>
+        <div><div class="bar" style="width: {{ (100 * d.n / max_decade)|round(1) }}%"></div></div>
+        <span class="num">{{ d.n|num }}</span></div>
+      {% else %}<div class="dim">No year data.</div>{% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <h2>Libraries</h2>
+    <table>
+      <thead><tr><th>Section</th><th>Enabled</th><th class="num">Tracks</th><th>Last sync</th><th>Last full</th></tr></thead>
+      <tbody>
+      {% for l in s.libraries %}
+        <tr><td>{{ l.name }}</td><td>{{ 'yes' if l.enabled else 'no' }}</td><td class="num">{{ l.track_count|num }}</td>
+            <td class="dim">{{ l.last_sync_at|ago }}</td><td class="dim">{{ l.last_full_sync_at|ago }}</td></tr>
+      {% else %}<tr><td colspan="5" class="dim">None yet - configure Plex in Settings.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% for title, items in [("Plex genres", s.genres), ("Plex moods", s.moods), ("Plex styles", s.styles), ("Last.fm / MusicBrainz tags", s.lastfm)] %}
+  <div class="card">
+    <h2>{{ title }}</h2>
+    <div class="chips">
+      {% for g in items %}<a class="chip" href="/library?tag={{ g.tag|urlencode }}">{{ g.tag }}<b>{{ g.n|num }}</b></a>
+      {% else %}<span class="dim">None yet.</span>{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  <div class="card">
+    <h2>Most played artists</h2>
+    <table><tbody>
+      {% for a in s.top_artists if a.plays %}<tr><td>{{ a.name }}</td><td class="num">{{ a.plays|num }} plays</td></tr>
+      {% else %}<tr><td class="dim">No plays yet.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="card">
+    <h2>Most played tracks</h2>
+    <table><tbody>
+      {% for m in s.most_played %}<tr><td>{{ m.title }} <span class="dim">· {{ m.artist }}</span></td><td class="num">{{ m.play_count|num }}</td></tr>
+      {% else %}<tr><td class="dim">No plays yet.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% endblock %}

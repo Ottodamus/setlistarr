@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}AI providers{% endblock %}
+{% block heading %}AI providers{% endblock %}
+{% block content %}
+{% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
+
+<div class="card">
+  <h2>Configured</h2>
+  {% if providers %}
+  <table>
+    <thead><tr><th>Name</th><th>Kind</th><th>Model</th><th class="hide-sm">Endpoint</th><th>Mode</th><th></th></tr></thead>
+    <tbody>
+    {% for p in providers %}
+      <tr>
+        <td>{{ p.name }} {% if p.is_default %}<span class="badge ok">default</span>{% endif %}</td>
+        <td class="dim">{{ kinds[p.kind].label }}</td>
+        <td class="mono">{{ p.model }}<div class="dim small" style="font-family:inherit">{{ hints[p.id] }}</div></td>
+        <td class="hide-sm dim small">{{ p.base_url or 'default' }}{% if p.kind != 'ollama' %} · key {{ 'set' if p.api_key else ('from $' ~ kinds[p.kind].key_env if kinds[p.kind].key_env else 'none') }}{% endif %}</td>
+        <td class="dim">{{ p.tool_mode }}</td>
+        <td class="nowrap" style="text-align:right">
+          <button class="btn" hx-post="/settings/providers/{{ p.id }}/test" hx-target="#test-{{ p.id }}">Test</button>
+          <a class="btn" href="/settings/providers/{{ p.id }}">Edit</a>
+          {% if not p.is_default %}<form method="post" action="/settings/providers/{{ p.id }}/default" style="display:inline"><button class="btn">Make default</button></form>{% endif %}
+          <form method="post" action="/settings/providers/{{ p.id }}/delete" style="display:inline" onsubmit="return confirm('Delete {{ p.name }}?')"><button class="btn">Delete</button></form>
+        </td>
+      </tr>
+      <tr><td colspan="6" id="test-{{ p.id }}" style="border:0;padding:0 10px"></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="dim">None yet. Add one below.</div>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Add a provider</h2>
+  <div id="provider-form">{% include "partials/provider_form.html" %}</div>
+</div>
+
+<div class="card" id="pricing">
+  <h2>Pricing (USD per million tokens)</h2>
+  <p class="dim small" style="margin-top:0">Used for the cost shown on each generation. Local providers (Ollama, LAN OpenAI-compatible endpoints) are free. A paid model with no row is logged with cost "?". Anthropic list prices are seeded; add OpenAI models you use.</p>
+  <table>
+    <thead><tr><th>Model</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache read</th><th class="num">Cache write</th><th></th></tr></thead>
+    <tbody>
+    {% for r in pricing %}
+      <tr>
+        <td class="mono">{{ r.model }} {% if r.note == 'user' %}<span class="badge">edited</span>{% endif %}</td>
+        <td class="num">{{ r.input_per_mtok }}</td><td class="num">{{ r.output_per_mtok }}</td>
+        <td class="num dim">{{ r.cache_read_per_mtok if r.cache_read_per_mtok is not none else '0.1×' }}</td>
+        <td class="num dim">{{ r.cache_write_per_mtok if r.cache_write_per_mtok is not none else '1.25×' }}</td>
+        <td><form method="post" action="/settings/pricing"><input type="hidden" name="model" value="{{ r.model }}"><input type="hidden" name="delete" value="1"><button class="btn">Remove</button></form></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <form method="post" action="/settings/pricing" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+    <input type="text" name="model" placeholder="model id" required>
+    <input type="number" step="any" name="input_per_mtok" placeholder="input" required style="width:100px">
+    <input type="number" step="any" name="output_per_mtok" placeholder="output" required style="width:100px">
+    <input type="number" step="any" name="cache_read_per_mtok" placeholder="cache read" style="width:110px">
+    <input type="number" step="any" name="cache_write_per_mtok" placeholder="cache write" style="width:110px">
+    <button class="btn" type="submit">Add / update</button>
+  </form>
+</div>
+{% endblock %}

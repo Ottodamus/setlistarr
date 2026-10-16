@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="alert alert-error">{{ message }}</div>
+<a class="btn" href="javascript:history.back()">Back</a>
+{% endblock %}

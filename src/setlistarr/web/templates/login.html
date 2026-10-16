@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Setlistarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+</head>
+<body class="auth-page">
+  <form method="post" action="/login" class="card auth-card">
+    <div class="brand">Setlist<span>arr</span></div>
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Username<input type="text" name="username" autocomplete="username" required autofocus></label>
+    <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit">Sign in</button>
+  </form>
+</body>
+</html>

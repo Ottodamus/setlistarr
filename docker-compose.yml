@@ -1,0 +1,29 @@
+services:
+  setlistarr:
+    build: .
+    image: setlistarr:latest
+    container_name: setlistarr
+    restart: unless-stopped
+    ports:
+      - 8787:8787
+    volumes:
+      - /opt/docker/setlistarr/config:/config
+    environment:
+      - TZ=America/Chicago
+      - PUID=1000
+      - PGID=1000
+      # Optional - anything set here is pinned and read-only in the Settings UI.
+      # - PLEX_URL=http://10.10.0.x:32400
+      # - PLEX_TOKEN=
+      # - LASTFM_API_KEY=
+      # - MUSICBRAINZ_CONTACT=you@example.com
+      # - ANTHROPIC_API_KEY=
+      # - OPENAI_API_KEY=
+      # Admin login; without these the first visit shows a setup page.
+      # - ADMIN_USERNAME=admin
+      # - ADMIN_PASSWORD=
+      # Set to 1 only if served over HTTPS (reverse proxy / tunnel).
+      # - SETLISTARR_COOKIE_SECURE=0
+      # Generated and stored in /config/secret_key if unset.
+      # - SETLISTARR_SECRET_KEY=
+      # - LOG_LEVEL=INFO

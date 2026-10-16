@@ -1,0 +1,14 @@
+{% if rows %}
+<table class="small" style="margin-top:8px">
+  <tbody>
+  {% for t in rows %}
+    <tr>
+      <td>{{ t.title }}</td><td class="dim">{{ t.track_artist or t.artist_name }}</td><td class="dim hide-sm">{{ t.album_title }}</td>
+      <td class="num">{{ t.year or '' }}</td><td class="num">{{ t.duration_ms|duration }}</td>
+      <td><button type="button" class="btn" hx-post="/drafts/{{ draft_id }}/add" hx-vals='{"plex_key": "{{ t.plex_key }}"}'
+                  hx-target="#draft" hx-swap="outerHTML">Add</button></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% elif q %}<div class="dim small" style="margin-top:8px">No matches.</div>{% endif %}

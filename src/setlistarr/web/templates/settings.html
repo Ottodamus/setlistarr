@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block content %}
+{% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
+
+<form method="post" action="/settings" id="settings-form">
+  {% for group, fields in groups %}
+  <div class="card">
+    <h2>{{ group }}</h2>
+    {% for f in fields %}
+    <div class="form-row">
+      <label for="{{ f.key }}">{{ f.label }}</label>
+      <div>
+        {% if f.kind == 'bool' %}
+          <input type="checkbox" id="{{ f.key }}" name="{{ f.key }}" {{ 'checked' if f.value }} {{ 'disabled' if f.source == 'env' }}>
+        {% elif f.secret %}
+          <input type="password" id="{{ f.key }}" name="{{ f.key }}" autocomplete="off"
+                 placeholder="{{ '•••••••• (set - leave blank to keep)' if f.is_set else 'not set' }}" {{ 'disabled' if f.source == 'env' }}>
+        {% else %}
+          <input type="{{ 'number' if f.kind == 'int' else 'text' }}" id="{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" {{ 'disabled' if f.source == 'env' }}>
+        {% endif %}
+        {% if f.source == 'env' %}<span class="badge env">set by ${{ f.env }}</span>{% endif %}
+        {% if f.help %}<div class="help">{{ f.help }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if group == 'Plex' %}
+    <div class="form-row"><span></span>
+      <div>
+        <button type="button" class="btn" hx-post="/settings/plex/test" hx-include="#settings-form"
+                hx-target="#plex-test" hx-indicator="#plex-spin">Test connection &amp; load libraries</button>
+        <span id="plex-spin" class="spin"></span>
+        <div id="plex-test" style="margin-top:12px"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <button class="btn primary" type="submit">Save settings</button>
+</form>
+
+<div class="card" style="margin-top:18px">
+  <h2>Admin password</h2>
+  <form hx-post="/settings/password" hx-target="#pw-result" style="display:flex;gap:8px;flex-wrap:wrap">
+    <input type="password" name="current" placeholder="current password" autocomplete="current-password" required>
+    <input type="password" name="new" placeholder="new password (8+)" autocomplete="new-password" minlength="8" required>
+    <input type="password" name="new2" placeholder="repeat new password" autocomplete="new-password" minlength="8" required>
+    <button class="btn" type="submit">Change password</button>
+  </form>
+  <div id="pw-result" style="margin-top:10px"></div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h2>Music libraries</h2>
+  <div id="libraries">{% include "partials/libraries.html" %}</div>
+</div>
+{% endblock %}

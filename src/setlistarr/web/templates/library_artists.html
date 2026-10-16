@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Artists{% endblock %}
+{% block heading %}Artists{% endblock %}
+{% block toolbar %}
+<form id="filters" hx-get="/library/artists" hx-target="#results" hx-push-url="true"
+      hx-trigger="input changed delay:300ms from:input[name=q]">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search artists" style="width:260px">
+</form>
+<div class="spacer"></div>
+<span class="dim">{{ result.total|num }} artists</span>
+{% endblock %}
+{% block content %}
+<div id="results">{% include "partials/artists_table.html" %}</div>
+{% endblock %}

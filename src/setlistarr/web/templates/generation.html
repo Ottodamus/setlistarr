@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ g.title or 'Generating' }}{% endblock %}
+{% block heading %}{{ g.title or 'Generating…' }}{% endblock %}
+{% block toolbar %}
+<div class="spacer"></div>
+{% if live %}
+<span id="cancel"><button class="btn" hx-post="/generate/{{ g.id }}/cancel" hx-target="#cancel">Cancel</button></span>
+{% endif %}
+<a class="btn" href="/generate">New</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="font-size:15px">“{{ g.prompt }}”</div>
+  <div class="dim small" style="margin-top:6px">{{ g.provider_name }} · {{ g.model }} · requested mode {{ g.mode_requested }}</div>
+</div>
+
+<div class="grid split">
+  <div>
+    {% if live %}
+    <div hx-ext="sse" sse-connect="/generate/{{ g.id }}/events" sse-close="done">
+      <div hx-get="/generate/{{ g.id }}/result" hx-trigger="sse:done" hx-swap="outerHTML">
+        <div class="card"><span class="spin" style="display:inline-block"></span> <span class="dim">Working - progress on the right.</span></div>
+      </div>
+      <div id="live-log-holder" style="display:none" sse-swap="step" hx-swap="beforeend" hx-target="#gen-log"></div>
+    </div>
+    {% else %}
+      {% include "partials/generation_result.html" %}
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Progress</h2>
+    <ol id="gen-log" class="gen-log">
+      {% if not live %}{% for e in g.trace %}{% include "partials/gen_event.html" %}{% endfor %}{% endif %}
+    </ol>
+  </div>
+</div>
+{% endblock %}

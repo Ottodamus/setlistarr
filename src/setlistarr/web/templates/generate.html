@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Generate{% endblock %}
+{% block heading %}Generate a playlist{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+{% if not providers %}
+<div class="alert alert-warn">No AI provider yet - add one under <a href="/settings/providers">AI providers</a>.</div>
+{% endif %}
+{% if not library_tracks %}
+<div class="alert alert-warn">The library is empty - configure Plex in <a href="/settings">Settings</a> and run a sync.</div>
+{% endif %}
+
+<form method="post" action="/generate" class="card">
+  <textarea name="prompt" rows="3" required style="width:100%;font-size:15px"
+    placeholder="90s alt-rock road trip, nothing too mellow, ~2 hours">{{ form.prompt or '' }}</textarea>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:12px">
+    <select name="provider_id" onchange="document.getElementById('cost-hint').textContent = this.selectedOptions[0].dataset.hint">
+      {% for p in providers %}
+      <option value="{{ p.id }}" data-hint="{{ hints[p.id] }}" {{ 'selected' if (form.provider_id|string == p.id|string) or (not form.provider_id and p.is_default) }}>{{ p.name }} · {{ p.model }}</option>
+      {% endfor %}
+    </select>
+    <select name="mode" title="auto = tool calling, falling back to two-stage if the model can't use tools">
+      <option value="">Mode: provider default</option>
+      {% for m in ['auto', 'tools', 'two_stage'] %}<option value="{{ m }}" {{ 'selected' if form.mode == m }}>Mode: {{ m.replace('_', '-') }}</option>{% endfor %}
+    </select>
+    <span id="cost-hint" class="dim small">{% for p in providers if (form.provider_id|string == p.id|string) or (not form.provider_id and p.is_default) %}{{ hints[p.id] }}{% endfor %}</span>
+    <div class="spacer" style="flex:1"></div>
+    <button class="btn primary" type="submit" {{ 'disabled' if not providers }}>Generate</button>
+  </div>
+  <details style="margin-top:12px">
+    <summary class="dim">Constraints (optional - fixed values override the prompt)</summary>
+    <div class="grid" style="margin-top:10px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+      <label class="small dim">Length (min)<br><input type="number" name="target_minutes" min="5" value="{{ form.target_minutes or '' }}" style="width:100%"></label>
+      <label class="small dim">Max per artist<br><input type="number" name="max_per_artist" min="1" value="{{ form.max_per_artist or '' }}" style="width:100%"></label>
+      <label class="small dim">From year<br><input type="number" name="year_min" value="{{ form.year_min or '' }}" style="width:100%"></label>
+      <label class="small dim">To year<br><input type="number" name="year_max" value="{{ form.year_max or '' }}" style="width:100%"></label>
+      <label class="small dim">Exclude artists (comma-separated)<br><input type="text" name="exclude_artists" value="{{ form.exclude_artists or '' }}" style="width:100%"></label>
+      <label class="small dim">Exclude tags (comma-separated)<br><input type="text" name="exclude_tags" value="{{ form.exclude_tags or '' }}" style="width:100%"></label>
+    </div>
+  </details>
+</form>
+
+<div class="card">
+  <h2>Recent</h2>
+  {% if recent %}
+  <table>
+    <thead><tr><th>Prompt</th><th>Result</th><th class="hide-sm">Provider</th><th class="num hide-sm">Cost</th><th>When</th></tr></thead>
+    <tbody>
+    {% for g in recent %}
+      <tr>
+        <td><a href="/generate/{{ g.id }}">{{ g.prompt[:90] }}{% if g.prompt|length > 90 %}…{% endif %}</a></td>
+        <td>{% if g.status == 'ok' %}{{ g.title }} <span class="dim small">· {{ g.tracks }} tracks</span>{% else %}<span class="badge {{ g.status }}">{{ g.status }}</span>{% endif %}</td>
+        <td class="hide-sm dim small">{{ g.provider_name }} · {{ g.mode_used or '' }}</td>
+        <td class="num hide-sm small">{% if g.cost_usd is none %}<span class="dim">-</span>{% elif g.cost_usd == 0 %}<span class="dim">free</span>{% else %}${{ '%.4f'|format(g.cost_usd) }}{% endif %}</td>
+        <td class="dim small nowrap">{{ g.created_at|ago }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="dim">Nothing generated yet.</div>{% endif %}
+</div>
+{% endblock %}

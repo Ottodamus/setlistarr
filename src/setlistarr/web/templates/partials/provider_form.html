@@ -1,0 +1,50 @@
+<form method="post" action="/settings/providers/save">
+  {% if cfg %}<input type="hidden" name="id" value="{{ cfg.id }}">{% endif %}
+  <div class="form-row"><label>Kind</label>
+    <div>
+      {% if cfg %}<input type="hidden" name="kind" value="{{ kind }}"><span>{{ kinds[kind].label }}</span>
+      {% else %}
+      <select name="kind" hx-get="/settings/providers/form" hx-target="#provider-form" hx-include="this">
+        {% for k, d in kinds.items() %}<option value="{{ k }}" {{ 'selected' if k == kind }}>{{ d.label }}</option>{% endfor %}
+      </select>
+      {% endif %}
+    </div>
+  </div>
+  <div class="form-row"><label>Name</label>
+    <div><input type="text" name="name" value="{{ cfg.name if cfg else defaults.label }}" required></div></div>
+  <div class="form-row"><label>Model</label>
+    <div><input type="text" name="model" value="{{ cfg.model if cfg else defaults.model }}" required list="models-{{ cfg.id if cfg else 'new' }}">
+      <div class="help">{% if kind == 'anthropic' %}e.g. claude-opus-5-5 (default), claude-sonnet-5-5, claude-haiku-4-5{% elif kind == 'ollama' %}any model you've pulled; it needs tool-calling support for tool mode{% else %}the model id the endpoint expects{% endif %}</div></div></div>
+  <div class="form-row"><label>Base URL</label>
+    <div><input type="text" name="base_url" value="{{ cfg.base_url if cfg else defaults.base_url }}"
+      placeholder="{{ 'default (api.anthropic.com)' if kind == 'anthropic' else '' }}">
+      <div class="help">{% if kind == 'openai_compat' %}OpenAI, or e.g. http://lmstudio:1234/v1, http://ollama:11434/v1{% elif kind == 'ollama' %}e.g. http://10.10.0.x:11434{% else %}leave blank unless you use a proxy{% endif %}</div></div></div>
+  {% if kind != 'ollama' %}
+  <div class="form-row"><label>API key</label>
+    <div><input type="password" name="api_key" autocomplete="off"
+      placeholder="{{ '•••••••• (set - leave blank to keep)' if cfg and cfg.api_key else 'blank = use $' ~ defaults.key_env }}">
+      {% if cfg and cfg.api_key %}<label class="small dim"><input type="checkbox" name="clear_api_key"> clear and use ${{ defaults.key_env }}</label>{% endif %}</div></div>
+  {% endif %}
+  <div class="form-row"><label>Generation mode</label>
+    <div><select name="tool_mode">
+      {% for m, label in [('auto', 'auto - tools, fall back to two-stage'), ('tools', 'tool calling only'), ('two_stage', 'two-stage (weak tool callers)')] %}
+      <option value="{{ m }}" {{ 'selected' if (cfg.tool_mode if cfg else defaults.tool_mode) == m }}>{{ label }}</option>{% endfor %}
+    </select>
+    {% if kind == 'ollama' %}<div class="help">Two-stage is recommended for models under ~30B: two calls instead of a long tool loop.</div>{% endif %}</div></div>
+  {% for f in option_fields %}
+  <div class="form-row"><label>{{ f.label }}</label>
+    <div>
+      {% if f.type == 'bool' %}
+        <input type="checkbox" name="{{ f.key }}" {{ 'checked' if (f.value if f.value != '' else f.default) }}>
+      {% elif f.type is sequence and f.type is not string %}
+        <select name="opt_{{ f.key }}">
+          {% for o in f.type %}<option value="{{ o }}" {{ 'selected' if (f.value|string|lower) == o }}>{{ o or ('default' ~ (' (' ~ f.default ~ ')' if f.default not in (none, '') else '')) }}</option>{% endfor %}
+        </select>
+      {% else %}
+        <input type="text" name="opt_{{ f.key }}" value="{{ f.value }}" placeholder="{{ f.default if f.default is not none else '' }}" style="max-width:200px">
+      {% endif %}
+    </div></div>
+  {% endfor %}
+  <div class="form-row"><label>Default</label><div><input type="checkbox" name="is_default" {{ 'checked' if cfg and cfg.is_default }}></div></div>
+  <button class="btn primary" type="submit">{{ 'Save' if cfg else 'Add provider' }}</button>
+</form>

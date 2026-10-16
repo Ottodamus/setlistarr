@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit recipe' if r.id else 'New recipe' }}{% endblock %}
+{% block heading %}{{ 'Edit recipe' if r.id else 'New recipe' }}{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+<form method="post" action="/recipes/save" class="card">
+  {% if r.id %}<input type="hidden" name="id" value="{{ r.id }}">{% endif %}
+  {% if r.plex_playlist_key %}<input type="hidden" name="plex_playlist_key" value="{{ r.plex_playlist_key }}">{% endif %}
+  <div class="form-row"><label>Name</label><div><input type="text" name="name" value="{{ r.name or '' }}" required></div></div>
+  <div class="form-row"><label>Prompt</label><div><textarea name="prompt" rows="3" required style="width:100%;max-width:640px">{{ r.prompt or '' }}</textarea></div></div>
+  <div class="form-row"><label>Plex playlist title</label>
+    <div><input type="text" name="playlist_title" value="{{ r.playlist_title or '' }}" placeholder="defaults to the recipe name">
+    <div class="help">{% if r.plex_playlist_key %}Refreshes replace playlist ratingKey {{ r.plex_playlist_key }} in place.{% else %}The first run creates the playlist; later runs replace it in place.{% endif %}</div></div></div>
+  <div class="form-row"><label>Schedule</label>
+    <div><select name="schedule_cron">
+      {% set cron = r.schedule_cron or '' %}
+      {% for v, label in presets.items() %}<option value="{{ v }}" {{ 'selected' if cron == v }}>{{ label }}</option>{% endfor %}
+    </select>
+    <input type="text" name="schedule_cron_custom" value="{{ cron if cron not in presets else '' }}" placeholder="or custom cron, e.g. 30 5 * * 6" style="max-width:220px">
+    <div class="help">Times are in the container's TZ.</div></div></div>
+  <div class="form-row"><label>Provider</label>
+    <div><select name="provider_id">
+      <option value="">Default provider</option>
+      {% for p in providers %}<option value="{{ p.id }}" {{ 'selected' if r.provider_id == p.id }}>{{ p.name }} · {{ p.model }}</option>{% endfor %}
+    </select>
+    <select name="mode">
+      <option value="">Mode: provider default</option>
+      {% for m in ['auto', 'tools', 'two_stage'] %}<option value="{{ m }}" {{ 'selected' if r.mode == m }}>Mode: {{ m.replace('_', '-') }}</option>{% endfor %}
+    </select></div></div>
+  <div class="form-row"><label>Options</label>
+    <div><label><input type="checkbox" name="enabled" {{ 'checked' if r.get('enabled', 1) }}> Enabled</label>
+      &nbsp; <label><input type="checkbox" name="avoid_repeats" {{ 'checked' if r.get('avoid_repeats', 1) }}> Avoid the previous refresh's tracks</label></div></div>
+  <div class="form-row"><label>Fixed constraints</label>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;max-width:640px">
+      <label class="small dim">Length (min)<br><input type="number" name="target_minutes" min="5" value="{{ c.target_minutes if 'target_minutes' in c.locked else '' }}" style="width:100%"></label>
+      <label class="small dim">Max per artist<br><input type="number" name="max_per_artist" min="1" value="{{ c.max_per_artist if 'max_per_artist' in c.locked else '' }}" style="width:100%"></label>
+      <label class="small dim">From year<br><input type="number" name="year_min" value="{{ c.year_min if 'year_min' in c.locked else '' }}" style="width:100%"></label>
+      <label class="small dim">To year<br><input type="number" name="year_max" value="{{ c.year_max if 'year_max' in c.locked else '' }}" style="width:100%"></label>
+      <label class="small dim">Exclude artists<br><input type="text" name="exclude_artists" value="{{ c.exclude_artists|join(', ') if 'exclude_artists' in c.locked else '' }}" style="width:100%"></label>
+      <label class="small dim">Exclude tags<br><input type="text" name="exclude_tags" value="{{ c.exclude_tags|join(', ') if 'exclude_tags' in c.locked else '' }}" style="width:100%"></label>
+    </div></div>
+  <button class="btn primary" type="submit">Save recipe</button> <a class="btn" href="/recipes">Cancel</a>
+</form>
+{% endblock %}

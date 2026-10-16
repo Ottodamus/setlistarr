@@ -1,0 +1,24 @@
+<div id="result">
+{% if g.status == 'running' %}
+  <div class="card"><span class="dim">Still running…</span> <a href="/generate/{{ g.id }}">refresh</a></div>
+{% elif g.status != 'ok' or not draft %}
+  <div class="alert alert-error"><b>{{ g.status|capitalize }}</b>{% if g.error %}: {{ g.error }}{% endif %}</div>
+{% else %}
+  <div class="card">
+    <div class="dim small">
+      mode {{ g.mode_used }} · {{ g.llm_calls }} model call{{ 's' if g.llm_calls != 1 }} · {{ ((g.duration_ms or 0) / 1000)|round(1) }}s
+      · {{ (g.input_tokens + g.cache_read_tokens + g.cache_write_tokens)|num }} in / {{ g.output_tokens|num }} out
+      {% if g.cache_read_tokens %}({{ g.cache_read_tokens|num }} from cache){% endif %}
+      · cost {% if g.cost_usd is none %}<span title="No pricing row for this model">?</span>{% elif g.cost_usd == 0 %}free{% else %}${{ '%.4f'|format(g.cost_usd) }}{% endif %}
+      {% if g.parent_draft_id %}· regenerated from <a href="/drafts/{{ g.parent_draft_id }}">draft #{{ g.parent_draft_id }}</a>{% endif %}
+    </div>
+    {% if draft.adjustments %}
+    <div class="small" style="margin-top:8px">What the validator changed:</div>
+    <ul class="adjustments">{% for a in draft.adjustments %}<li>{{ a }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  <div id="draft" hx-get="/drafts/{{ draft.id }}/editor" hx-trigger="load" hx-swap="outerHTML">
+    <div class="card dim">Loading draft…</div>
+  </div>
+{% endif %}
+</div>

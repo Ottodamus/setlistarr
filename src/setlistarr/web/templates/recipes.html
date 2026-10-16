@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Recipes{% endblock %}
+{% block heading %}Recipes{% endblock %}
+{% block toolbar %}<div class="spacer"></div><a class="btn primary" href="/recipes/new">New recipe</a>{% endblock %}
+{% block content %}
+<p class="dim" style="margin-top:0">A recipe is a saved prompt that regenerates and replaces its own Plex playlist on a schedule - like a smart playlist, built by the AI. A failed run never touches the playlist.</p>
+{% if recipes %}
+<div class="card">
+<table>
+  <thead><tr><th>Recipe</th><th>Schedule</th><th class="hide-sm">Provider</th><th>Playlist</th><th>Last run</th><th></th></tr></thead>
+  <tbody>
+  {% for r in recipes %}
+    <tr {% if not r.enabled %}style="opacity:.6"{% endif %}>
+      <td><a href="/recipes/{{ r.id }}">{{ r.name }}</a><div class="dim small">{{ r.prompt[:90] }}{% if r.prompt|length > 90 %}…{% endif %}</div></td>
+      <td class="small">{{ r.schedule_text }}{% if not r.enabled %} <span class="badge">paused</span>{% elif next_runs.get(r.id) %}<div class="dim">next {{ next_runs[r.id].strftime('%a %b %d %H:%M') }}</div>{% endif %}</td>
+      <td class="hide-sm dim small">{{ r.provider_name or 'default provider' }}</td>
+      <td class="small">{% if r.plex_playlist_key %}{{ r.playlist_current_title or r.playlist_title or r.name }} <span class="dim">· {{ r.playlist_tracks or '?' }} tracks</span>{% else %}<span class="dim">created on first run</span>{% endif %}</td>
+      <td class="small nowrap">
+        {% if r.running or r.last_status == 'running' %}<span class="badge running">running</span>
+        {% elif r.last_status %}<span class="badge {{ r.last_status }}" title="{{ r.last_error or '' }}">{{ r.last_status }}</span> <span class="dim">{{ r.last_run_at|ago }}</span>
+          {% if r.last_generation_id %}<a href="/generate/{{ r.last_generation_id }}">view</a>{% endif %}
+          {% if r.last_error %}<div style="color:var(--error)">{{ r.last_error[:120] }}</div>{% endif %}
+        {% else %}<span class="dim">never</span>{% endif %}
+      </td>
+      <td class="nowrap" style="text-align:right">
+        <form method="post" action="/recipes/{{ r.id }}/run" style="display:inline"><button class="btn" {{ 'disabled' if r.running }}>Run now</button></form>
+        <form method="post" action="/recipes/{{ r.id }}/toggle" style="display:inline"><button class="btn">{{ 'Pause' if r.enabled else 'Resume' }}</button></form>
+        <form method="post" action="/recipes/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('Delete recipe {{ r.name }}? Its Plex playlist is kept.')"><button class="btn">Delete</button></form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if recipes|selectattr('running')|list or recipes|selectattr('last_status', 'equalto', 'running')|list %}
+<div hx-get="/recipes" hx-trigger="every 5s" hx-select="main" hx-target="main" hx-swap="outerHTML"></div>
+{% endif %}
+{% else %}
+<div class="empty">No recipes yet. Create one here, or use “Save as recipe” on any draft.</div>
+{% endif %}
+{% endblock %}

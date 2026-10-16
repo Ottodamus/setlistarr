@@ -1,0 +1,28 @@
+{% set r = result %}
+{% if r.rows %}
+<table>
+  <thead><tr>
+    <th>Artist</th><th class="num">Albums</th><th class="num">Tracks</th><th class="num hide-sm">Years</th>
+    <th class="num hide-sm">Plays</th><th class="hide-sm">Genres</th>
+  </tr></thead>
+  <tbody>
+  {% for a in r.rows %}
+    <tr>
+      <td><a href="/library?q={{ a.name|urlencode }}">{{ a.name }}</a></td>
+      <td class="num">{{ a.albums }}</td>
+      <td class="num">{{ a.tracks }}</td>
+      <td class="num hide-sm dim">{% if a.first_year %}{{ a.first_year }}{% if a.last_year != a.first_year %}–{{ a.last_year }}{% endif %}{% endif %}</td>
+      <td class="num hide-sm">{{ a.plays or 0 }}</td>
+      <td class="hide-sm dim small">{{ (a.genres or '[]')|replace('[', '')|replace(']', '')|replace('"', '') }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="pager" hx-target="#results" hx-include="#filters" hx-push-url="true">
+  {% if r.page > 1 %}<button class="btn" hx-get="/library/artists?page={{ r.page - 1 }}">‹ Prev</button>{% endif %}
+  <span class="dim">Page {{ r.page }} of {{ r.pages }}</span>
+  {% if r.page < r.pages %}<button class="btn" hx-get="/library/artists?page={{ r.page + 1 }}">Next ›</button>{% endif %}
+</div>
+{% else %}
+<div class="empty">No artists match.</div>
+{% endif %}

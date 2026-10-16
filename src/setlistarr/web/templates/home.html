@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block heading %}Setlistarr{% endblock %}
+{% block content %}
+{% if not setup_done %}
+<div class="card">
+  <h2>Get started</h2>
+  <ol class="checklist">
+    {% for label, done, href in setup %}
+      <li class="{{ 'done' if done }}">{% if done %}✓ {{ label }}{% else %}<a href="{{ href }}">{{ label }}</a>{% endif %}</li>
+    {% endfor %}
+  </ol>
+</div>
+{% endif %}
+
+<div class="tiles">
+  <div class="tile"><div class="v">{{ lib.tracks|num }}</div><div class="k">Tracks · synced {{ lib.last_sync|ago }}</div></div>
+  <div class="tile"><div class="v">{{ managed_count }}</div><div class="k">Plex playlists managed</div></div>
+  <div class="tile"><div class="v">{{ recipes|length }}</div><div class="k">Active recipes</div></div>
+  <div class="tile"><div class="v">${{ '%.2f'|format(spend) }}</div><div class="k">AI spend, 30 days</div></div>
+</div>
+
+{% if providers and lib.tracks %}
+<form method="post" action="/generate" class="card">
+  <h2>New playlist</h2>
+  <textarea name="prompt" rows="2" required style="width:100%;font-size:15px" placeholder="rainy sunday morning, mellow, mostly pre-2010, ~90 minutes"></textarea>
+  <div style="display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap">
+    <select name="provider_id" onchange="document.getElementById('home-hint').textContent = this.selectedOptions[0].dataset.hint">
+      {% for p in providers %}<option value="{{ p.id }}" data-hint="{{ hints[p.id] }}" {{ 'selected' if p.is_default }}>{{ p.name }} · {{ p.model }}</option>{% endfor %}
+    </select>
+    <span id="home-hint" class="dim small">{% for p in providers if p.is_default %}{{ hints[p.id] }}{% endfor %}</span>
+    <div style="flex:1"></div>
+    <a class="dim small" href="/generate">more options</a>
+    <button class="btn primary" type="submit">Generate</button>
+  </div>
+</form>
+{% endif %}
+
+<div class="grid">
+  <div class="card">
+    <h2>Recent</h2>
+    {% for g in recent %}
+      <div class="list-row"><a href="/generate/{{ g.id }}">{{ g.title or g.prompt[:60] }}</a>
+        <span class="dim small">{% if g.status != 'ok' %}<span class="badge {{ g.status }}">{{ g.status }}</span>{% else %}{{ g.tracks }} tracks{% endif %} · {{ g.created_at|ago }}</span></div>
+    {% else %}<div class="dim">Nothing generated yet.</div>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Upcoming refreshes</h2>
+    {% for r in recipes %}
+      <div class="list-row"><a href="/recipes/{{ r.id }}">{{ r.name }}</a>
+        <span class="dim small">{% if next_runs.get(r.id) %}{{ next_runs[r.id].strftime('%a %b %d %H:%M') }}{% else %}manual{% endif %}
+          {% if r.last_status == 'error' %}<span class="badge error" title="{{ r.last_error }}">last run failed</span>{% endif %}</span></div>
+    {% else %}<div class="dim">No recipes. <a href="/recipes/new">Create one</a>.</div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

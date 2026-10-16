@@ -1,0 +1,49 @@
+[project]
+name = "setlistarr"
+version = "0.1.0"
+description = "AI-built Plex music playlists, grounded in the tracks you actually own"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.2",
+    "requests>=2.31",
+    "httpx>=0.27",
+    "apscheduler>=3.10,<4",
+    "structlog>=24.1",
+    "mcp>=2.0,<3",
+    "anthropic>=1.15,<2",
+    "openai>=3.0,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-httpserver>=1.0",
+]
+
+[project.scripts]
+setlistarr = "setlistarr.cli:main"
+setlistarr-mcp = "setlistarr.mcp_server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+setlistarr = [
+    "core/migrations/*.sql",
+    "web/templates/*.html",
+    "web/templates/partials/*.html",
+    "web/static/*.css",
+    "web/static/*.js",
+    "web/static/vendor/*.js",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
