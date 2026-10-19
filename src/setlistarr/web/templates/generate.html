@@ -59,12 +59,21 @@
   <h2>Recent</h2>
   {% if recent %}
   <div class="table-wrap"><table>
-    <thead><tr><th>Prompt</th><th>Result</th><th class="hide-sm">Provider</th><th class="num hide-sm">Cost</th><th>When</th></tr></thead>
+    <thead><tr><th>Playlist</th><th class="hide-sm">Prompt</th><th class="hide-sm">Provider</th><th class="num hide-sm">Cost</th><th>When</th></tr></thead>
     <tbody>
     {% for g in recent %}
       <tr>
-        <td><a href="/generate/{{ g.id }}">{{ g.prompt[:90] }}{% if g.prompt|length > 90 %}…{% endif %}</a></td>
-        <td>{% if g.status == 'ok' %}{{ g.title }} <span class="dim small">· {{ g.tracks }} tracks</span>{% else %}<span class="badge {{ g.status }}">{{ g.status }}</span>{% endif %}</td>
+        <td>
+          {% if g.cover_id %}<img src="/covers/{{ g.cover_id }}.jpg" alt="" class="recipe-thumb" loading="lazy">{% endif %}
+          {% if g.status == 'ok' %}
+            <a href="/generate/{{ g.id }}">{{ g.playlist_title or g.title or 'Untitled' }}</a>
+            <div class="dim small">{{ g.tracks }} tracks{% if g.pushed_as %} · <span class="badge ok">pushed</span>{% if g.pushed_as != g.playlist_title %} as “{{ g.pushed_as }}”{% endif %}{% endif %}</div>
+          {% else %}
+            <a href="/generate/{{ g.id }}" class="dim">{{ g.prompt[:60] }}{% if g.prompt|length > 60 %}…{% endif %}</a>
+            <div><span class="badge {{ g.status }}">{{ g.status }}</span></div>
+          {% endif %}
+        </td>
+        <td class="hide-sm dim small">{{ g.prompt[:90] }}{% if g.prompt|length > 90 %}…{% endif %}</td>
         <td class="hide-sm dim small">{{ g.provider_name }} · {{ g.mode_used or '' }}</td>
         <td class="num hide-sm small">{% if g.cost_usd is none %}<span class="dim">-</span>{% elif g.cost_usd == 0 %}<span class="dim">free</span>{% else %}${{ '%.4f'|format(g.cost_usd) }}{% endif %}</td>
         <td class="dim small nowrap">{{ g.created_at|ago }}</td>

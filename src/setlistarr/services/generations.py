@@ -25,9 +25,12 @@ def recent_generations(conn: sqlite3.Connection, limit: int = 10) -> list[dict[s
         dict(r)
         for r in conn.execute(
             """SELECT g.id, g.created_at, g.prompt, g.status, g.title, g.provider_name, g.model, g.mode_used,
-                      g.cost_usd, g.duration_ms, (SELECT COUNT(*) FROM draft_tracks dt JOIN drafts d
-                       ON d.id = dt.draft_id WHERE d.generation_id = g.id) AS tracks
-               FROM generations g ORDER BY g.id DESC LIMIT ?""",
+                      g.cost_usd, g.duration_ms, d.id AS draft_id, d.title AS playlist_title, d.cover_id,
+                      (SELECT COUNT(*) FROM draft_tracks dt WHERE dt.draft_id = d.id) AS tracks,
+                      (SELECT p.title FROM pushes p WHERE p.draft_id = d.id ORDER BY p.id DESC LIMIT 1) AS pushed_as
+               FROM generations g
+               LEFT JOIN drafts d ON d.id = (SELECT MAX(id) FROM drafts WHERE generation_id = g.id)
+               ORDER BY g.id DESC LIMIT ?""",
             (limit,),
         )
     ]

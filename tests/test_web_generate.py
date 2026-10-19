@@ -101,3 +101,22 @@ def test_cost_hint(client, conn):
     conn.commit()
     assert cost_hint(conn, p).startswith("~$0.120 per run (avg of last 1)")
     assert "~$0.120" in client.get("/generate").text
+
+
+def test_recent_shows_current_playlist_title(client, conn, plex, monkeypatch):
+    from setlistarr.core.plex.sync import sync_all
+    from setlistarr.generation.constraints import Constraints
+    from setlistarr.generation.runner import GenerationManager
+    from setlistarr.services import drafts as dsvc
+    from setlistarr.services.generations import get_generation
+
+    sync_all(conn, plex, full=True)
+    _add_provider(client)
+    script = ScriptedProvider([tools(call("add_to_draft", plex_keys=["100", "101"])),
+                               tools(call("finish", title="Model Title", reasoning="r"))])
+    gid = GenerationManager().start(conn, "a prompt nobody reads", background=False, inject={"provider": script},
+                                    constraints=Constraints(target_minutes=7))
+    dsvc.update_meta(conn, get_generation(conn, gid)["draft_id"], "My Renamed Mix", "")
+    page = client.get("/generate").text
+    recent = page[page.index("<h2>Recent</h2>"):]
+    assert "My Renamed Mix" in recent and "2 tracks" in recent and "Model Title" not in recent

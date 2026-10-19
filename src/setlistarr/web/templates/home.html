@@ -40,7 +40,7 @@
   <div class="card">
     <h2>Recent</h2>
     {% for g in recent %}
-      <div class="list-row"><a href="/generate/{{ g.id }}">{{ g.title or g.prompt[:60] }}</a>
+      <div class="list-row"><a href="/generate/{{ g.id }}">{{ g.playlist_title or g.title or g.prompt[:60] }}</a>
         <span class="dim small">{% if g.status != 'ok' %}<span class="badge {{ g.status }}">{{ g.status }}</span>{% else %}{{ g.tracks }} tracks{% endif %} · {{ g.created_at|ago }}</span></div>
     {% else %}<div class="dim">Nothing generated yet.</div>{% endfor %}
   </div>
