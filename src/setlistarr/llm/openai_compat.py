@@ -4,6 +4,7 @@ via the official `openai` SDK's Chat Completions API."""
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from typing import Any
 
@@ -144,8 +145,19 @@ class OpenAICompatProvider:
             params["response_format"] = "b64_json"
         else:
             params["quality"] = self.image_quality
+        # SDK auto-retries would fire 3 requests within a second on a 429 - useless for a quota
+        # problem and too fast for a real rate limit. One paced retry instead.
+        client = self.client.with_options(max_retries=0)
         try:
-            resp = self.client.images.generate(**params)
+            try:
+                resp = client.images.generate(**params)
+            except openai.RateLimitError as e:
+                if _is_quota(e):
+                    raise
+                time.sleep(_retry_after(e, default=5.0, cap=20.0))
+                resp = client.images.generate(**params)
+        except openai.RateLimitError as e:
+            raise self._map_error(e) from e
         except openai.BadRequestError as e:
             msg = _msg(e)
             if "safety" in msg.lower() or "moderation" in msg.lower() or "content_policy" in msg.lower():
@@ -180,7 +192,15 @@ class OpenAICompatProvider:
         if isinstance(e, openai.NotFoundError):
             return ProviderError(f"{label}: not found (check the model name / base URL) - {_msg(e)}")
         if isinstance(e, openai.RateLimitError):
-            return ProviderError(f"{label} rate limit hit - try again shortly", retryable=True)
+            if _is_quota(e):
+                return ProviderError(
+                    f"{label} says this account has no credit left (insufficient_quota). Add a payment method "
+                    "or prepaid credit at platform.openai.com/settings/organization/billing - API billing is "
+                    "separate from a ChatGPT subscription.")
+            wait = _retry_after(e, default=0, cap=3600)
+            return ProviderError(
+                f"{label} rate limit hit: {_msg(e)}" + (f" - try again in ~{wait:.0f}s" if wait else ""),
+                retryable=True)
         if isinstance(e, openai.APITimeoutError):
             return ProviderError(f"{label} timed out", retryable=True)
         if isinstance(e, openai.APIConnectionError):
@@ -190,5 +210,26 @@ class OpenAICompatProvider:
         return ProviderError(f"{label} error: {_msg(e)}")
 
 
+def _is_quota(e: Exception) -> bool:
+    """OpenAI sends 'out of credit' as a 429 too; tell it apart from real rate limiting."""
+    code = (getattr(e, "code", None) or "").lower()
+    return code == "insufficient_quota" or "insufficient_quota" in str(e).lower() or "exceeded your current quota" in str(e).lower()
+
+
+def _retry_after(e: Exception, *, default: float, cap: float) -> float:
+    resp = getattr(e, "response", None)
+    raw = resp.headers.get("retry-after") if resp is not None else None
+    try:
+        return min(float(raw), cap) if raw else default
+    except ValueError:
+        return default
+
+
 def _msg(e: Exception) -> str:
+    """OpenAI's own error text, not the SDK's 'Error code: 429 - {...}' wrapper."""
+    body = getattr(e, "body", None)
+    if isinstance(body, dict):
+        inner = body.get("error") if isinstance(body.get("error"), dict) else body
+        if inner.get("message"):
+            return str(inner["message"])
     return getattr(e, "message", None) or str(e)

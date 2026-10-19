@@ -174,3 +174,45 @@ def test_first_provider_becomes_default(conn):
     b = save_provider(conn, ProviderConfig(id=None, name="B", kind="ollama", model="m"))
     rows = dict(conn.execute("SELECT id, is_default FROM providers").fetchall())
     assert rows == {a: 1, b: 0}
+
+
+IMG_OK = {"created": 0, "data": [{"b64_json": "iVBORw0KGgo="}], "usage": {"input_tokens": 10, "output_tokens": 20,
+          "total_tokens": 30, "input_tokens_details": {"text_tokens": 10, "image_tokens": 0}}}
+
+
+def img_provider(rec):
+    client = openai.DefaultHttpx2Client(transport=httpx2.MockTransport(rec))
+    return OpenAICompatProvider("gpt-image-2.5-flare", api_key="sk-x", base_url="https://api.openai.com/v1",
+                                http_client=client)
+
+
+def test_image_429_quota_is_explained_and_not_retried():
+    quota = {"error": {"message": "You exceeded your current quota, please check your plan and billing details.",
+                       "type": "insufficient_quota", "code": "insufficient_quota"}}
+    rec = Recorder((429, quota), (429, quota), (429, quota))
+    with pytest.raises(ProviderError, match="no credit left .*billing") as ei:
+        img_provider(rec).generate_image("x")
+    assert not ei.value.retryable and len(rec.requests) == 1
+
+
+def test_image_429_rate_limit_retries_once_after_wait(monkeypatch):
+    import setlistarr.llm.openai_compat as oc
+
+    waits = []
+    monkeypatch.setattr(oc.time, "sleep", waits.append)
+    limited = {"error": {"message": "Rate limit reached for images per min", "type": "requests", "code": "rate_limit_exceeded"}}
+
+    class R(Recorder):
+        def __call__(self, request):
+            resp = super().__call__(request)
+            if resp.status_code == 429:
+                resp.headers["retry-after"] = "7"
+            return resp
+
+    rec = R((429, limited), (200, IMG_OK))
+    image, usage, model = img_provider(rec).generate_image("x")
+    assert image.startswith(b"\x89PNG") and waits == [7.0] and len(rec.requests) == 2 and usage.output_tokens == 20
+
+    rec2 = R((429, limited), (429, limited))
+    with pytest.raises(ProviderError, match=r"rate limit hit: .*images per min - try again in ~7s"):
+        img_provider(rec2).generate_image("x")
