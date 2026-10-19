@@ -1,7 +1,7 @@
 <div {% if busy %}hx-get="/system" hx-trigger="every 2s" hx-swap="outerHTML" hx-target="this"{% endif %}>
 {% if next_runs %}
 <div class="dim small" style="margin-bottom:10px">
-  {% for id, at in next_runs.items() %}{{ id.replace('periodic-', '') }}: next {{ at.strftime('%Y-%m-%d %H:%M') if at else 'paused' }}{% if not loop.last %} · {% endif %}{% endfor %}
+  {% for id, at in next_runs.items() %}{{ id.replace('periodic-', '') }}: next {{ at.strftime('%a %Y-%m-%d %H:%M %Z') if at else 'paused' }}{% if not loop.last %} · {% endif %}{% endfor %}
 </div>
 {% endif %}
 {% if jobs %}
@@ -19,7 +19,11 @@
         {% elif j.stats %}
           {% for name, st in j.stats.items() %}
             {% if st is mapping and st.mode is defined %}
-              <div>{{ name }}: {{ st.mode }}{% if st.escalated_from_incremental %} (escalated){% endif %} · {{ st.tracks|num }} tracks changed · {{ st.removed|num }} removed · {{ st.live_tracks|num }} live · {{ st.seconds }}s</div>
+              <div>{{ name }}: {{ 'full' if st.mode == 'full' else 'incremental' }}{% if st.escalated_from_incremental %} (escalated to full){% endif %} · {% if st.mode == 'full' %}{{ st.tracks|num }} tracks read{% elif st.tracks %}{{ st.tracks|num }} tracks changed{% else %}no track changes{% endif %}{% if st.removed %} · {{ st.removed|num }} removed{% endif %} · {{ st.live_tracks|num }} in library · {{ st.seconds }}s</div>
+            {% elif name == '_playlists' and st is mapping %}
+              <div>Playlists: {{ st.playlists }} in Plex · {% if st.reread %}{{ st.reread }} updated{% else %}all up to date{% endif %}{% if st.removed %} · {{ st.removed }} deleted{% endif %}</div>
+            {% elif name == '_enrich' and st is mapping %}
+              <div>Enrich: {{ st.artists_processed|num }} artists · {{ st.tags_written|num }} tags{% if st.similar_written %} · {{ st.similar_written|num }} similar artists{% endif %}</div>
             {% elif st is mapping %}
               <div>{{ name.lstrip('_') }}: {% for k, v in st.items() %}{{ k }}={{ v }} {% endfor %}</div>
             {% else %}<span>{{ name }}={{ st }}</span> {% endif %}

@@ -122,3 +122,19 @@ def test_every_theme_defines_every_token():
     for theme in ("light", "midnight", "synthwave"):
         block = re.search(rf'html\[data-theme="{theme}"\] \{{(.*?)\}}', css, re.S).group(1)
         assert tokens <= set(re.findall(r"(--[\w-]+):", block)), theme
+
+
+def test_jobs_table_explains_playlist_and_enrich_results(client, conn):
+    import json
+
+    stats = {"Music": {"section_id": 1, "mode": "incremental", "tracks": 0, "removed": 0, "live_tracks": 12854, "seconds": 0.3},
+             "_playlists": {"playlists": 5, "reread": 0, "removed": 0},
+             "_enrich": {"artists_processed": 161, "tags_written": 118286, "similar_written": 0}}
+    conn.execute("INSERT INTO jobs(kind, trigger, started_at, finished_at, status, stats_json) "
+                 "VALUES('sync', 'manual', '2026-10-19T20:00:00+00:00', '2026-10-19T20:00:01+00:00', 'ok', ?)",
+                 (json.dumps(stats),))
+    conn.commit()
+    html = client.get("/system", headers={"HX-Request": "true"}).text
+    assert "Playlists: 5 in Plex · all up to date" in html
+    assert "no track changes" in html and "12,854 in library" in html
+    assert "Enrich: 161 artists · 118,286 tags" in html and "reread=" not in html
