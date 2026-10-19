@@ -1,9 +1,9 @@
 {% set r = result %}
 {% if r.rows %}
-<table>
+<div class="table-wrap"><table>
   <thead><tr>
     <th>Title</th><th>Artist</th><th class="hide-sm">Album</th><th class="num">Year</th>
-    <th class="num">Length</th><th class="hide-sm">Rating</th><th class="num hide-sm">Plays</th><th class="hide-sm">Tags</th>
+    <th class="num">Length</th><th class="hide-sm hide-md">Rating</th><th class="num hide-sm">Plays</th><th class="hide-sm hide-md">Tags</th>
   </tr></thead>
   <tbody>
   {% for t in r.rows %}
@@ -13,13 +13,13 @@
       <td class="hide-sm dim">{{ t.album_title }}</td>
       <td class="num">{{ t.year or '' }}</td>
       <td class="num">{{ t.duration_ms|duration }}</td>
-      <td class="hide-sm" style="color:var(--accent)">{{ t.user_rating|stars }}</td>
+      <td class="hide-sm hide-md nowrap" style="color:var(--accent)">{{ t.user_rating|stars }}</td>
       <td class="num hide-sm">{{ t.play_count or 0 }}</td>
-      <td class="hide-sm dim small">{{ t.tags or '' }}</td>
+      <td class="hide-sm hide-md dim small">{{ t.tags or '' }}</td>
     </tr>
   {% endfor %}
   </tbody>
-</table>
+</table></div>
 <div class="pager" hx-target="#results" hx-include="#filters" hx-push-url="true">
   {% if r.page > 1 %}<button class="btn" hx-get="/library?page={{ r.page - 1 }}">‹ Prev</button>{% endif %}
   <span class="dim">Page {{ r.page }} of {{ r.pages }} · {{ r.total|num }} matching</span>

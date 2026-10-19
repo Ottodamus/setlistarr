@@ -15,7 +15,7 @@
 <div class="card">
   <h2>Playlists in Plex</h2>
   {% if managed %}
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Playlist</th><th class="num">Tracks</th><th>Updated</th><th>From draft</th><th></th></tr></thead>
     <tbody>
     {% for m in managed %}
@@ -28,7 +28,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   <div class="dim small" style="margin-top:8px">Only these playlists are ever modified by Setlistarr.</div>
   {% else %}<div class="dim">Nothing pushed yet.</div>{% endif %}
 </div>
@@ -36,7 +36,7 @@
 <div class="card">
   <h2>Generations</h2>
   {% if rows %}
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>When</th><th>Prompt</th><th>Result</th><th class="hide-sm">Provider</th><th class="num hide-sm">Tokens</th><th class="num">Cost</th><th class="num hide-sm">Time</th></tr></thead>
     <tbody>
     {% for g in rows %}
@@ -54,7 +54,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   <div class="pager">
     {% if page > 1 %}<a class="btn" href="/history?page={{ page - 1 }}&status={{ status }}">‹ Newer</a>{% endif %}
     <span class="dim">Page {{ page }} of {{ pages }}</span>

@@ -7,7 +7,7 @@
 <div class="card">
   <h2>Configured</h2>
   {% if providers %}
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Name</th><th>Kind</th><th>Model</th><th class="hide-sm">Endpoint</th><th>Mode</th><th></th></tr></thead>
     <tbody>
     {% for p in providers %}
@@ -17,7 +17,7 @@
         <td class="mono">{{ p.model }}<div class="dim small" style="font-family:inherit">{{ hints[p.id] }}</div></td>
         <td class="hide-sm dim small">{{ p.base_url or 'default' }}{% if p.kind != 'ollama' %} · key {{ 'set' if p.api_key else ('from $' ~ kinds[p.kind].key_env if kinds[p.kind].key_env else 'none') }}{% endif %}</td>
         <td class="dim">{{ p.tool_mode }}</td>
-        <td class="nowrap" style="text-align:right">
+        <td class="actions">
           <button class="btn" hx-post="/settings/providers/{{ p.id }}/test" hx-target="#test-{{ p.id }}">Test</button>
           <a class="btn" href="/settings/providers/{{ p.id }}">Edit</a>
           {% if not p.is_default %}<form method="post" action="/settings/providers/{{ p.id }}/default" style="display:inline"><button class="btn">Make default</button></form>{% endif %}
@@ -27,7 +27,7 @@
       <tr><td colspan="6" id="test-{{ p.id }}" style="border:0;padding:0 10px"></td></tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}<div class="dim">None yet. Add one below.</div>{% endif %}
 </div>
 
@@ -39,7 +39,7 @@
 <div class="card" id="pricing">
   <h2>Pricing (USD per million tokens)</h2>
   <p class="dim small" style="margin-top:0">Used for the cost shown on each generation. Local providers (Ollama, LAN OpenAI-compatible endpoints) are free. A paid model with no row is logged with cost "?". Anthropic list prices are seeded; add OpenAI models you use.</p>
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Model</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache read</th><th class="num">Cache write</th><th></th></tr></thead>
     <tbody>
     {% for r in pricing %}
@@ -52,7 +52,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   <form method="post" action="/settings/pricing" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
     <input type="text" name="model" placeholder="model id" required>
     <input type="number" step="any" name="input_per_mtok" placeholder="input" required style="width:100px">

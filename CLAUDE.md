@@ -113,6 +113,9 @@ git-ignored - never in this file.
   structlog `log.info("area.event", key=value)` event names.
 - UI: server-rendered Jinja; HTMX for partial updates (`is_htmx(request)` -> return a partial).
   Vendored JS in `web/static/vendor/` (htmx 2.0.4, htmx-ext-sse 2.2.2, SortableJS 1.15.6) - no CDN, no Node.
+- Layout: nothing may be wider than its card. Use `minmax(0, 1fr)` / `min(Npx, 100%)` in grids, wrap
+  tables in `.table-wrap`, and let `.form-row` stack via the card container query. After UI changes run
+  `python scripts/ui_audit.py` (Playwright; renders every page at 1440-390 px and fails on overflow).
 - Colors are CSS custom properties in `web/static/app.css` - never hard-code a color. Themes (dark default,
   light, midnight, synthwave) override the tokens via `<html data-theme>`, rendered server-side from the
   `ui_theme` setting. A new theme must define every token (a test checks) and pass WCAG AA contrast.

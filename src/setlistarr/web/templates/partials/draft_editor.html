@@ -30,20 +30,20 @@
 
   <div class="card">
     <form class="sortable-form" hx-post="/drafts/{{ d.id }}/reorder" hx-trigger="end" hx-target="#draft" hx-swap="outerHTML">
-    <table class="draft-table">
-      <thead><tr><th></th><th class="num">#</th><th>Title</th><th>Artist</th><th class="hide-sm">Album</th><th class="num">Year</th><th class="num">Length</th><th></th></tr></thead>
+    <div class="table-wrap"><table class="draft-table">
+      <thead><tr><th></th><th class="num hide-sm">#</th><th>Title</th><th>Artist</th><th class="hide-sm hide-md">Album</th><th class="num hide-sm">Year</th><th class="num">Length</th><th></th></tr></thead>
       <tbody class="sortable-body">
       {% for t in d.tracks %}
         <tr class="{{ 'missing' if t.missing }} {{ 'locked' if t.locked }}">
           <td class="handle" title="Drag to reorder">⠿<input type="hidden" name="key" value="{{ t.plex_key }}"></td>
-          <td class="num dim">{{ loop.index }}</td>
+          <td class="num dim hide-sm">{{ loop.index }}</td>
           <td>{{ t.title }}
             {% if t.missing %}<span class="badge error">gone from Plex</span>{% endif %}
             {% if t.source == 'backfill' %}<span class="badge" title="Added by the validator from the model's own search results">backfill</span>{% endif %}
             {% if t.source == 'user' %}<span class="badge">yours</span>{% endif %}</td>
           <td>{{ t.artist }}</td>
-          <td class="hide-sm dim">{{ t.album }}</td>
-          <td class="num">{{ t.year or '' }}</td>
+          <td class="hide-sm hide-md dim">{{ t.album }}</td>
+          <td class="num hide-sm">{{ t.year or '' }}</td>
           <td class="num">{{ t.duration_ms|duration }}</td>
           <td class="nowrap row-actions">
             <button type="button" class="icon-btn {{ 'on' if t.locked }}" title="{{ 'Locked - kept on regenerate' if t.locked else 'Lock: keep this track when regenerating' }}"
@@ -57,7 +57,7 @@
         <tr><td colspan="8" class="empty">The draft is empty - add tracks below or regenerate.</td></tr>
       {% endfor %}
       </tbody>
-    </table>
+    </table></div>
     </form>
     <div style="margin-top:14px">
       <input type="search" name="q" placeholder="Add a track: search your library…" style="width:100%;max-width:420px"

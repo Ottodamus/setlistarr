@@ -1,5 +1,5 @@
 {% if rows %}
-<table class="small" style="margin-top:8px">
+<div class="table-wrap"><table class="small" style="margin-top:8px">
   <tbody>
   {% for t in rows %}
     <tr>
@@ -10,5 +10,5 @@
     </tr>
   {% endfor %}
   </tbody>
-</table>
+</table></div>
 {% elif q %}<div class="dim small" style="margin-top:8px">No matches.</div>{% endif %}

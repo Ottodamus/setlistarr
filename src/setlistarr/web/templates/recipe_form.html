@@ -31,7 +31,7 @@
     <div><label><input type="checkbox" name="enabled" {{ 'checked' if r.get('enabled', 1) }}> Enabled</label>
       &nbsp; <label><input type="checkbox" name="avoid_repeats" {{ 'checked' if r.get('avoid_repeats', 1) }}> Avoid the previous refresh's tracks</label></div></div>
   <div class="form-row"><label>Fixed constraints</label>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;max-width:640px">
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:10px;max-width:640px">
       <label class="small dim">Length (min)<br><input type="number" name="target_minutes" min="5" value="{{ c.target_minutes if 'target_minutes' in c.locked else '' }}" style="width:100%"></label>
       <label class="small dim">Max per artist<br><input type="number" name="max_per_artist" min="1" value="{{ c.max_per_artist if 'max_per_artist' in c.locked else '' }}" style="width:100%"></label>
       <label class="small dim">From year<br><input type="number" name="year_min" value="{{ c.year_min if 'year_min' in c.locked else '' }}" style="width:100%"></label>

@@ -6,7 +6,7 @@
 <p class="dim" style="margin-top:0">A recipe is a saved prompt that regenerates and replaces its own Plex playlist on a schedule - like a smart playlist, built by the AI. A failed run never touches the playlist.</p>
 {% if recipes %}
 <div class="card">
-<table>
+<div class="table-wrap"><table>
   <thead><tr><th>Recipe</th><th>Schedule</th><th class="hide-sm">Provider</th><th>Playlist</th><th>Last run</th><th></th></tr></thead>
   <tbody>
   {% for r in recipes %}
@@ -23,7 +23,7 @@
           {% if r.last_error %}<div style="color:var(--error)">{{ r.last_error[:120] }}</div>{% endif %}
         {% else %}<span class="dim">never</span>{% endif %}
       </td>
-      <td class="nowrap" style="text-align:right">
+      <td class="actions">
         <form method="post" action="/recipes/{{ r.id }}/run" style="display:inline"><button class="btn" {{ 'disabled' if r.running }}>Run now</button></form>
         <form method="post" action="/recipes/{{ r.id }}/toggle" style="display:inline"><button class="btn">{{ 'Pause' if r.enabled else 'Resume' }}</button></form>
         <form method="post" action="/recipes/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('Delete recipe {{ r.name }}? Its Plex playlist is kept.')"><button class="btn">Delete</button></form>
@@ -31,7 +31,7 @@
     </tr>
   {% endfor %}
   </tbody>
-</table>
+</table></div>
 </div>
 {% if recipes|selectattr('running')|list or recipes|selectattr('last_status', 'equalto', 'running')|list %}
 <div hx-get="/recipes" hx-trigger="every 5s" hx-select="main" hx-target="main" hx-swap="outerHTML"></div>

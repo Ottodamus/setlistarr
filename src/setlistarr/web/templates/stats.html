@@ -26,15 +26,15 @@
   </div>
   <div class="card">
     <h2>Libraries</h2>
-    <table>
-      <thead><tr><th>Section</th><th>Enabled</th><th class="num">Tracks</th><th>Last sync</th><th>Last full</th></tr></thead>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Section</th><th class="nowrap">On</th><th class="num">Tracks</th><th>Synced</th></tr></thead>
       <tbody>
       {% for l in s.libraries %}
-        <tr><td>{{ l.name }}</td><td>{{ 'yes' if l.enabled else 'no' }}</td><td class="num">{{ l.track_count|num }}</td>
-            <td class="dim">{{ l.last_sync_at|ago }}</td><td class="dim">{{ l.last_full_sync_at|ago }}</td></tr>
+        <tr><td>{{ l.name }}</td><td class="nowrap">{{ 'yes' if l.enabled else 'no' }}</td><td class="num">{{ l.track_count|num }}</td>
+            <td class="dim small">{{ l.last_sync_at|ago }}<br>full {{ l.last_full_sync_at|ago }}</td></tr>
       {% else %}<tr><td colspan="5" class="dim">None yet - configure Plex in Settings.</td></tr>{% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </div>
   {% for title, items in [("Plex genres", s.genres), ("Plex moods", s.moods), ("Plex styles", s.styles), ("Last.fm / MusicBrainz tags", s.lastfm)] %}
   <div class="card">
@@ -47,17 +47,17 @@
   {% endfor %}
   <div class="card">
     <h2>Most played artists</h2>
-    <table><tbody>
+    <div class="table-wrap"><table><tbody>
       {% for a in s.top_artists if a.plays %}<tr><td>{{ a.name }}</td><td class="num">{{ a.plays|num }} plays</td></tr>
       {% else %}<tr><td class="dim">No plays yet.</td></tr>{% endfor %}
-    </tbody></table>
+    </tbody></table></div>
   </div>
   <div class="card">
     <h2>Most played tracks</h2>
-    <table><tbody>
+    <div class="table-wrap"><table><tbody>
       {% for m in s.most_played %}<tr><td>{{ m.title }} <span class="dim">· {{ m.artist }}</span></td><td class="num">{{ m.play_count|num }}</td></tr>
       {% else %}<tr><td class="dim">No plays yet.</td></tr>{% endfor %}
-    </tbody></table>
+    </tbody></table></div>
   </div>
 </div>
 {% endblock %}

@@ -29,7 +29,7 @@
   </div>
   <details style="margin-top:12px">
     <summary class="dim">Constraints (optional - fixed values override the prompt)</summary>
-    <div class="grid" style="margin-top:10px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+    <div class="grid" style="margin-top:10px;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:10px">
       <label class="small dim">Length (min)<br><input type="number" name="target_minutes" min="5" value="{{ form.target_minutes or '' }}" style="width:100%"></label>
       <label class="small dim">Max per artist<br><input type="number" name="max_per_artist" min="1" value="{{ form.max_per_artist or '' }}" style="width:100%"></label>
       <label class="small dim">From year<br><input type="number" name="year_min" value="{{ form.year_min or '' }}" style="width:100%"></label>
@@ -58,7 +58,7 @@
 <div class="card">
   <h2>Recent</h2>
   {% if recent %}
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Prompt</th><th>Result</th><th class="hide-sm">Provider</th><th class="num hide-sm">Cost</th><th>When</th></tr></thead>
     <tbody>
     {% for g in recent %}
@@ -71,7 +71,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% else %}<div class="dim">Nothing generated yet.</div>{% endif %}
 </div>
 {% endblock %}
