@@ -36,3 +36,13 @@ def test_db_files_are_owner_only(tmp_path):
     restrict_permissions(db)
     assert db.stat().st_mode & 0o777 == 0o600
     assert (tmp_path / "s.db-wal").stat().st_mode & 0o777 == 0o600
+
+
+def test_version_is_single_sourced():
+    import importlib.metadata
+    import re
+
+    import setlistarr
+
+    assert re.fullmatch(r"\d+\.\d+\.\d+", setlistarr.__version__)
+    assert importlib.metadata.version("setlistarr") == setlistarr.__version__

@@ -1,6 +1,6 @@
 [project]
 name = "setlistarr"
-version = "0.1.0"
+dynamic = ["version"]  # single source: src/setlistarr/__init__.py
 description = "AI-built Plex music playlists, grounded in the tracks you actually own"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -33,6 +33,9 @@ setlistarr-mcp = "setlistarr.mcp_server:main"
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "setlistarr.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

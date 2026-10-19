@@ -1,3 +1,4 @@
 """Setlistarr - AI-built Plex music playlists from the tracks you actually own."""
 
-__version__ = "0.1.0"
+# Bump the MINOR number on every push to GitHub (scripts/hooks/pre-push enforces it).
+__version__ = "0.2.0"

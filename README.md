@@ -111,6 +111,9 @@ SETLISTARR_CONFIG_DIR=/tmp/setlistarr SETLISTARR_AUTH_DISABLED=1 LOG_FORMAT=cons
 ```
 
 Tests use a fake Plex server and a scripted fake LLM - no network, no API keys.
+
+Versioning: every push bumps the minor version (`__version__` in `src/setlistarr/__init__.py`, the
+only place it lives) and is tagged `vX.Y.0`. Enable the check with `git config core.hooksPath scripts/hooks`.
 `CLAUDE.md` documents the architecture and the rules the code relies on.
 
 Setlistarr was built with AI assistance (Anthropic's Claude); every change is covered by the

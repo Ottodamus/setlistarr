@@ -86,6 +86,14 @@ git-ignored - never in this file.
 - Incremental sync = `updatedAt>>` + `lastViewedAt>>` (plays don't bump updatedAt) with a 5 min
   overlap; then a count check escalates to full sync if Plex has fewer tracks than we do.
 
+## Versioning (owner's rule)
+- **Every push to GitHub bumps the MINOR version by exactly one** (0.2.0 -> 0.3.0 -> ...), even for
+  small changes. Major/patch stay put unless the owner says otherwise.
+- The only place the version lives is `__version__` in `src/setlistarr/__init__.py` (pyproject reads it).
+- Bump it in the last commit before pushing, tag that commit `vX.Y.0`, and push the tag with it.
+- `scripts/hooks/pre-push` refuses a push that doesn't bump it; enable per clone with
+  `git config core.hooksPath scripts/hooks`.
+
 ## Dev loop
 - `python -m venv .venv && .venv/bin/pip install -e '.[dev]'`
 - Tests: `.venv/bin/python -m pytest -q`. No network or API keys needed.
