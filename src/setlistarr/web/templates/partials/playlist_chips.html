@@ -1,0 +1,6 @@
+{% set max_chips = max_chips or 2 %}
+{% if pls %}<div class="pl-chips">
+  {% for p in pls[:max_chips] %}<a class="pl-chip {{ 'managed' if p.managed }}" href="/library?playlist={{ p.key }}"
+     title="{{ 'Made by Setlistarr - ' if p.managed }}show tracks in “{{ p.title }}”">{{ p.title }}</a>{% endfor %}
+  {% if pls|length > max_chips %}<span class="pl-more" title="{{ pls[max_chips:]|map(attribute='title')|join(', ') }}">+{{ pls|length - max_chips }}</span>{% endif %}
+</div>{% endif %}

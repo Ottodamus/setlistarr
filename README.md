@@ -25,7 +25,8 @@ Then open `http://<host>:8787`:
 
 1. **Settings → Plex**: server URL (the PMS itself, e.g. `http://192.168.0.x:32400`) and token →
    *Test connection & load libraries* → tick the music sections to use.
-2. **System → Full sync**. Later syncs are incremental (hourly by default) with a nightly full
+2. **System → Full sync**. This also reads your Plex music playlists (read-only), so Tracks and
+   Artists show which playlists each song or artist is in, with an *In playlist* filter. Later syncs are incremental (hourly by default) with a nightly full
    sync to catch deletions.
 3. Optional: add a Last.fm API key and MusicBrainz contact, then **Enrich tags** for richer
    genre/mood vocabulary.

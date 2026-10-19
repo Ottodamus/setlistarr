@@ -3,7 +3,7 @@
 <div class="table-wrap"><table>
   <thead><tr>
     <th>Artist</th><th class="num">Albums</th><th class="num">Tracks</th><th class="num hide-sm">Years</th>
-    <th class="num hide-sm">Plays</th><th class="hide-sm">Genres</th>
+    <th class="num hide-sm">Plays</th><th class="hide-sm">Genres</th><th class="hide-sm">Playlists</th>
   </tr></thead>
   <tbody>
   {% for a in r.rows %}
@@ -14,6 +14,7 @@
       <td class="num hide-sm dim">{% if a.first_year %}{{ a.first_year }}{% if a.last_year != a.first_year %}–{{ a.last_year }}{% endif %}{% endif %}</td>
       <td class="num hide-sm">{{ a.plays or 0 }}</td>
       <td class="hide-sm dim small">{{ (a.genres or '[]')|replace('[', '')|replace(']', '')|replace('"', '') }}</td>
+      <td class="hide-sm">{% with pls = a.playlists, max_chips = 3 %}{% include "partials/playlist_chips.html" %}{% endwith %}</td>
     </tr>
   {% endfor %}
   </tbody>

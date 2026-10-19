@@ -98,6 +98,12 @@ def push_draft(
             (draft_id, rating_key, title, action, len(push_keys), json.dumps(skipped), _now()),
         )
         conn.execute("UPDATE drafts SET status = 'pushed', updated_at = ? WHERE id = ?", (_now(), draft_id))
+    from ..core.plex.playlist_sync import set_members
+
+    set_members(conn, rating_key, push_keys, title=title)  # library view is current without waiting for a sync
+    if action == "recreated" and replace_key:
+        conn.execute("DELETE FROM plex_playlists WHERE rating_key = ?", (replace_key,))
+        conn.commit()
     log.info("push.done", draft_id=draft_id, action=action, rating_key=rating_key, tracks=len(push_keys),
              clear_method=res.get("clear_method"))
     return {"action": action, "ratingKey": rating_key, "track_count": len(push_keys), "skipped": skipped,

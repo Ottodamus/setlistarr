@@ -5,11 +5,19 @@
 <form id="filters" class="toolbar-form" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"
       hx-get="/library" hx-target="#results" hx-push-url="true" hx-indicator="#spin"
       hx-trigger="input changed delay:300ms from:input[name=q], input changed delay:400ms from:input[name=tag], change from:select">
-  <input type="search" name="q" value="{{ q }}" placeholder="Search title, artist, album" style="width:260px">
-  <input type="text" name="tag" value="{{ tag }}" placeholder="Tag (e.g. shoegaze)" style="width:170px">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search title, artist, album" style="width:min(260px,100%)">
+  <input type="text" name="tag" value="{{ tag }}" placeholder="Tag (e.g. shoegaze)" style="width:min(170px,100%)">
   <select name="decade">
     <option value="">Any decade</option>
     {% for d in decades %}<option value="{{ d }}" {{ 'selected' if decade == d }}>{{ d }}s</option>{% endfor %}
+  </select>
+  <select name="playlist" aria-label="Playlist filter">
+    <option value="">Any playlist status</option>
+    <option value="in" {{ 'selected' if playlist == 'in' }}>In a playlist</option>
+    <option value="none" {{ 'selected' if playlist == 'none' }}>Not in any playlist</option>
+    {% if playlists %}<optgroup label="In playlist…">
+      {% for p in playlists %}<option value="{{ p.key }}" {{ 'selected' if playlist == p.key }}>{{ p.title }} ({{ p.n }}){% if p.managed %} · Setlistarr{% endif %}{% if p.smart %} · smart{% endif %}</option>{% endfor %}
+    </optgroup>{% endif %}
   </select>
   <select name="sort">
     {% for s in sorts %}<option value="{{ s }}" {{ 'selected' if sort == s }}>Sort: {{ s.replace('_', ' ') }}</option>{% endfor %}

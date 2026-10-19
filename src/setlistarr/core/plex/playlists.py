@@ -60,7 +60,21 @@ def get_playlist(plex: PlexClient, rating_key: str) -> dict[str, Any] | None:
 
 
 def playlist_items(plex: PlexClient, rating_key: str) -> list[dict[str, Any]]:
-    return plex.get(f"/playlists/{rating_key}/items").get("Metadata", []) or []
+    """All items, paged like plexapi's fetchItems (big smart playlists can be thousands)."""
+    out: list[dict[str, Any]] = []
+    while True:
+        mc = plex.get(f"/playlists/{rating_key}/items",
+                      {"X-Plex-Container-Start": len(out), "X-Plex-Container-Size": 1000})
+        page = mc.get("Metadata", []) or []
+        out += page
+        total = int(mc.get("totalSize", len(out)) or len(out))
+        if not page or len(out) >= total:
+            return out
+
+
+def list_audio_playlists(plex: PlexClient) -> list[dict[str, Any]]:
+    """GET /playlists?playlistType=audio (plexapi PlexServer.playlists(playlistType='audio'))."""
+    return plex.get("/playlists", {"playlistType": "audio"}).get("Metadata", []) or []
 
 
 def add_items(plex: PlexClient, rating_key: str, keys: list[str]) -> None:

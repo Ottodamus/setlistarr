@@ -47,10 +47,16 @@ LONG = [
 for i in range(40):
     t, a, al = LONG[i % len(LONG)]
     conn.execute(
-        "INSERT INTO tracks(plex_key, title, artist_name, track_artist, album_title, year, duration_ms, section_id, "
-        "play_count, user_rating) VALUES(?,?,?,?,?,?,?,11,?,?)",
-        (str(1000 + i), f"{t} {i}", a, a, al, 1990 + i % 30, 200_000 + i * 1000, i % 7, 8 if i % 3 else None))
+        "INSERT INTO tracks(plex_key, title, artist_name, artist_key, track_artist, album_title, year, duration_ms, "
+        "section_id, play_count, user_rating) VALUES(?,?,?,?,?,?,?,?,11,?,?)",
+        (str(1000 + i), f"{t} {i}", a, f"artist-{i % len(LONG)}", a, al, 1990 + i % 30, 200_000 + i * 1000, i % 7,
+         8 if i % 3 else None))
     conn.execute("INSERT INTO track_tags(track_id, source, tag) VALUES(?, 'plex-genre', 'alternative/indie rock')", (i + 1,))
+for pk, title in [("901", "Road Trip Mix"), ("902", "Late Night Coding Session Deep Focus Instrumentals"),
+                  ("903", "Gym"), ("904", "Sunday Morning Coffee & Crossword Vibes")]:
+    conn.execute("INSERT INTO plex_playlists(rating_key, title, synced_at) VALUES(?, ?, datetime('now'))", (pk, title))
+    conn.executemany("INSERT INTO playlist_tracks(playlist_key, position, plex_key) VALUES(?,?,?)",
+                     [(pk, j, str(1000 + i)) for j, i in enumerate(range(int(pk) - 901, 40, 2))])
 conn.commit()
 save_provider(conn, ProviderConfig(id=None, name="llama3.1:8b", kind="ollama", model="llama3.1:8b",
                                    base_url="http://192.168.1.20:11434", tool_mode="two_stage", is_default=True))
@@ -66,8 +72,8 @@ draft_id = get_generation(conn, gid)["draft_id"]
 buf = io.BytesIO(); Image.new("RGB", (1024, 1024), (200, 120, 40)).save(buf, "JPEG")
 cid = covers.store(conn, buf.getvalue(), kind="ai_image", draft_id=draft_id, model="gpt-image-2.5-flare", cost=0.014)
 covers.set_cover(conn, cid, draft_id=draft_id)
-register_managed(conn, "108239", "Road Trip Mix", 19, draft_id=draft_id)
-conn.execute("INSERT INTO pushes(draft_id, plex_playlist_key, title, action, track_count, pushed_at) VALUES(?, '108239', 'Road Trip Mix', 'created', 19, datetime('now'))", (draft_id,))
+register_managed(conn, "901", "Road Trip Mix", 19, draft_id=draft_id)
+conn.execute("INSERT INTO pushes(draft_id, plex_playlist_key, title, action, track_count, pushed_at) VALUES(?, '901', 'Road Trip Mix', 'created', 19, datetime('now'))", (draft_id,))
 conn.commit()
 rid = recipes.save_recipe(conn, {"name": "Weekly Alt-Rock Refresh With A Long Name", "prompt": "energetic alt rock " * 8,
                                  "provider_id": 2, "mode": None, "constraints": Constraints.from_form({"target_minutes": 90}),
@@ -85,7 +91,7 @@ threading.Thread(target=server.run, daemon=True).start()
 while not server.started:
     time.sleep(0.1)
 
-PAGES = ["/", "/generate", f"/generate/{gid}", "/library", "/library/artists", "/stats", "/history", "/recipes",
+PAGES = ["/", "/library?playlist=902", "/generate", f"/generate/{gid}", "/library", "/library/artists", "/stats", "/history", "/recipes",
          "/recipes/new", f"/recipes/{rid}", "/settings", "/settings/providers", "/settings/providers/3", "/system", "/login"]
 WIDTHS = [1440, 1280, 1100, 1000, 900, 800, 760, 600, 390]
 
@@ -155,7 +161,7 @@ with sync_playwright() as p:
             issues = page.evaluate(DETECT)
             if issues:
                 report.setdefault(path, {})[w] = [i["msg"] for i in issues]
-            if shots and w in (1100, 390) and os.makedirs(OUT, exist_ok=True) is None and path in (f"/generate/{gid}", "/recipes", "/settings/providers", f"/recipes/{rid}"):
+            if shots and w in (1440, 1100, 390) and os.makedirs(OUT, exist_ok=True) is None and path in (f"/generate/{gid}", "/recipes", "/settings/providers", f"/recipes/{rid}", "/library", "/library/artists"):
                 page.screenshot(path=f"{OUT}/shot-{w}-{path.strip('/').replace('/', '_') or 'home'}.png", full_page=True)
         page.close()
     browser.close()

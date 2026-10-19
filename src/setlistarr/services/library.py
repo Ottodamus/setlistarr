@@ -8,6 +8,7 @@ from typing import Any
 from ..config import Settings
 from ..core.enrich import EnrichConfig, enrich
 from ..core.plex.client import client_from_settings
+from ..core.plex.playlist_sync import sync_playlists
 from ..core.plex.sync import LIVE_TRACK_SQL, sync_all
 
 
@@ -15,6 +16,7 @@ def do_sync(conn: sqlite3.Connection, *, full: bool) -> dict[str, Any]:
     settings = Settings(conn)
     with client_from_settings(settings) as plex:
         result = sync_all(conn, plex, full=full)
+        result["_playlists"] = sync_playlists(conn, plex)
     if full and settings.get("enrich_after_full_sync"):
         result["_enrich"] = do_enrich(conn)
     return result
@@ -38,6 +40,37 @@ TRACK_SORTS = {
 }
 
 
+_SEP_ROW, _SEP_COL = "\x1e", "\x1f"  # record/unit separators for GROUP_CONCAT round-trips
+
+
+def _playlist_list(raw: str | None) -> list[dict[str, Any]]:
+    """'key US title US managed RS ...' -> [{key, title, managed}] sorted by title."""
+    out = []
+    for item in (raw or "").split(_SEP_ROW):
+        if item:
+            key, title, managed = item.split(_SEP_COL)
+            out.append({"key": key, "title": title, "managed": managed == "1"})
+    return sorted(out, key=lambda p: p["title"].lower())
+
+
+def playlist_choices(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Playlists that contain at least one live library track, for the filter dropdown."""
+    return [dict(r) for r in conn.execute(
+        f"""SELECT pp.rating_key AS key, pp.title, pp.smart,
+                   EXISTS (SELECT 1 FROM managed_playlists m WHERE m.plex_playlist_key = pp.rating_key) AS managed,
+                   (SELECT COUNT(*) FROM playlist_tracks pt JOIN tracks t ON t.plex_key = pt.plex_key
+                    WHERE pt.playlist_key = pp.rating_key AND {LIVE_TRACK_SQL}) AS n
+            FROM plex_playlists pp ORDER BY LOWER(pp.title)""")
+        if r["n"]]
+
+
+_TRACK_PLAYLISTS = f"""(SELECT GROUP_CONCAT(pp.rating_key || '{_SEP_COL}' || pp.title || '{_SEP_COL}' ||
+                         EXISTS (SELECT 1 FROM managed_playlists m WHERE m.plex_playlist_key = pp.rating_key),
+                         '{_SEP_ROW}')
+                      FROM plex_playlists pp
+                      WHERE pp.rating_key IN (SELECT playlist_key FROM playlist_tracks WHERE plex_key = t.plex_key))"""
+
+
 def browse_tracks(
     conn: sqlite3.Connection,
     *,
@@ -47,8 +80,17 @@ def browse_tracks(
     sort: str = "artist",
     page: int = 1,
     per_page: int = 50,
+    playlist: str = "",
 ) -> dict[str, Any]:
+    """playlist: '' (any), 'in' (in at least one), 'none' (in no playlist), or a playlist ratingKey."""
     where, params = [LIVE_TRACK_SQL], []
+    if playlist == "in":
+        where.append("EXISTS (SELECT 1 FROM playlist_tracks pt WHERE pt.plex_key = t.plex_key)")
+    elif playlist == "none":
+        where.append("NOT EXISTS (SELECT 1 FROM playlist_tracks pt WHERE pt.plex_key = t.plex_key)")
+    elif playlist:
+        where.append("EXISTS (SELECT 1 FROM playlist_tracks pt WHERE pt.plex_key = t.plex_key AND pt.playlist_key = ?)")
+        params.append(playlist)
     if q.strip():
         like = f"%{q.strip().lower()}%"
         where.append(
@@ -71,15 +113,21 @@ def browse_tracks(
                t.duration_ms, t.user_rating, t.play_count, t.last_played_at,
                (SELECT GROUP_CONCAT(tag, ', ') FROM
                    (SELECT DISTINCT tag FROM track_tags tt WHERE tt.track_id = t.id
-                    AND tt.source LIKE 'plex-%' LIMIT 4)) AS tags
+                    AND tt.source LIKE 'plex-%' LIMIT 4)) AS tags,
+               {_TRACK_PLAYLISTS} AS playlists_raw
         FROM tracks t WHERE {clause}
         ORDER BY {TRACK_SORTS.get(sort, TRACK_SORTS['artist'])}
         LIMIT ? OFFSET ?
         """,
         [*params, per_page, (page - 1) * per_page],
     ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["playlists"] = _playlist_list(d.pop("playlists_raw"))
+        out.append(d)
     return {
-        "rows": [dict(r) for r in rows],
+        "rows": out,
         "total": total,
         "page": page,
         "pages": max(1, -(-total // per_page)),
@@ -99,7 +147,13 @@ def browse_artists(conn: sqlite3.Connection, *, q: str = "", page: int = 1, per_
         f"""
         SELECT t.artist_name AS name, COUNT(*) AS tracks, COUNT(DISTINCT t.album_key) AS albums,
                MIN(t.year) AS first_year, MAX(t.year) AS last_year, SUM(t.play_count) AS plays,
-               ar.genres AS genres
+               ar.genres AS genres,
+               (SELECT GROUP_CONCAT(pp.rating_key || '{_SEP_COL}' || pp.title || '{_SEP_COL}' ||
+                         EXISTS (SELECT 1 FROM managed_playlists m WHERE m.plex_playlist_key = pp.rating_key),
+                         '{_SEP_ROW}')
+                FROM plex_playlists pp WHERE pp.rating_key IN (
+                    SELECT pt.playlist_key FROM playlist_tracks pt JOIN tracks t2 ON t2.plex_key = pt.plex_key
+                    WHERE t2.artist_key = t.artist_key)) AS playlists_raw
         FROM tracks t LEFT JOIN artists ar ON ar.plex_key = t.artist_key
         WHERE {clause}
         GROUP BY t.artist_key ORDER BY LOWER(t.artist_name)
@@ -107,8 +161,12 @@ def browse_artists(conn: sqlite3.Connection, *, q: str = "", page: int = 1, per_
         """,
         [*params, per_page, (max(1, page) - 1) * per_page],
     ).fetchall()
-    return {"rows": [dict(r) for r in rows], "total": total, "page": max(1, page),
-            "pages": max(1, -(-total // per_page))}
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["playlists"] = _playlist_list(d.pop("playlists_raw"))
+        out.append(d)
+    return {"rows": out, "total": total, "page": max(1, page), "pages": max(1, -(-total // per_page))}
 
 
 def library_stats(conn: sqlite3.Connection) -> dict[str, Any]:

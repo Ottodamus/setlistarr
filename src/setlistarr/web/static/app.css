@@ -290,3 +290,17 @@ td.actions form, td.actions > .btn, td.actions > button { display: inline-block;
   td:not(.num):not(.nowrap):not(.actions):not(.handle):not(.row-actions) { min-width: 5em; }
   .card { padding: 14px 12px; }
 }
+
+/* playlist membership in the library */
+.pl-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.pl-chip { font-size: 11.5px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border);
+           background: var(--bg-elev-2); color: var(--text); max-width: 16em; overflow: hidden;
+           text-overflow: ellipsis; white-space: nowrap; }
+.pl-chip:hover { border-color: var(--accent); text-decoration: none; }
+.pl-chip.managed { border-color: var(--accent); color: var(--accent); }
+.pl-more { font-size: 11.5px; color: var(--text-dim); cursor: help; align-self: center; }
+.pl-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+          margin-left: 6px; vertical-align: middle; }
+.toolbar-form { min-width: 0; max-width: 100%; }
+.toolbar select { max-width: min(16em, 100%); }
+@media (max-width: 1100px) { .pl-chip { max-width: 9em; } }

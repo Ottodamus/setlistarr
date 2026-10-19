@@ -2,20 +2,21 @@
 {% if r.rows %}
 <div class="table-wrap"><table>
   <thead><tr>
-    <th>Title</th><th>Artist</th><th class="hide-sm">Album</th><th class="num">Year</th>
-    <th class="num">Length</th><th class="hide-sm hide-md">Rating</th><th class="num hide-sm">Plays</th><th class="hide-sm hide-md">Tags</th>
+    <th>Title</th><th>Artist</th><th class="hide-sm hide-md">Album</th><th class="num">Year</th>
+    <th class="num">Length</th><th class="hide-sm hide-md">Rating</th><th class="num hide-sm hide-md">Plays</th><th class="hide-sm hide-md">Tags</th><th class="hide-sm">Playlists</th>
   </tr></thead>
   <tbody>
   {% for t in r.rows %}
     <tr>
-      <td>{{ t.title }}</td>
+      <td>{{ t.title }}{% if t.playlists %}<span class="pl-dot" title="In {{ t.playlists|length }} playlist{{ 's' if t.playlists|length != 1 }}: {{ t.playlists|map(attribute='title')|join(', ') }}" aria-label="In a playlist"></span>{% endif %}</td>
       <td>{{ t.track_artist or t.artist_name }}{% if t.track_artist and t.track_artist != t.artist_name %}<div class="dim small">{{ t.artist_name }}</div>{% endif %}</td>
-      <td class="hide-sm dim">{{ t.album_title }}</td>
+      <td class="hide-sm hide-md dim">{{ t.album_title }}</td>
       <td class="num">{{ t.year or '' }}</td>
       <td class="num">{{ t.duration_ms|duration }}</td>
       <td class="hide-sm hide-md nowrap" style="color:var(--accent)">{{ t.user_rating|stars }}</td>
-      <td class="num hide-sm">{{ t.play_count or 0 }}</td>
+      <td class="num hide-sm hide-md">{{ t.play_count or 0 }}</td>
       <td class="hide-sm hide-md dim small">{{ t.tags or '' }}</td>
+      <td class="hide-sm">{% with pls = t.playlists, max_chips = 2 %}{% include "partials/playlist_chips.html" %}{% endwith %}</td>
     </tr>
   {% endfor %}
   </tbody>

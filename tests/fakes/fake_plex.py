@@ -123,6 +123,12 @@ class FakePlex:
             keys = m.group(1).split(",")
             return self._json({"Metadata": [self._public(self.items[k], True) for k in keys if k in self.items]})
 
+        if path == "/playlists" and req.method == "GET":
+            return self._json({"Metadata": [
+                {"ratingKey": pl["ratingKey"], "title": pl["title"], "smart": int(pl.get("smart", 0)),
+                 "playlistType": "audio", "leafCount": len(pl["_keys"]), "updatedAt": pl.get("updatedAt", 1)}
+                for pl in self.playlists.values()]})
+
         if path == "/playlists" and req.method == "POST":
             uri = req.args["uri"]
             assert uri.startswith(f"server://{MACHINE_ID}/com.plexapp.plugins.library/library/metadata/"), uri
@@ -159,6 +165,7 @@ class FakePlex:
                 if not self.bulk_clear:
                     return Response("not found", 404)
                 pl["_keys"], pl["_ids"] = [], []
+                pl["updatedAt"] = pl.get("updatedAt", 1) + 1
                 return Response("", 200)
             if req.method == "DELETE":
                 if int(item_id) not in pl["_ids"]:
@@ -170,9 +177,15 @@ class FakePlex:
                 new = req.args["uri"].rsplit("/", 1)[1].split(",")
                 pl["_keys"] += new
                 pl["_ids"] += [self._item_id() for _ in new]
+                pl["updatedAt"] = pl.get("updatedAt", 1) + 1
                 return Response("", 200)
 
         return Response("not found", 404)
+
+    def add_user_playlist(self, key: str, title: str, track_keys: list[str], smart: bool = False) -> None:
+        """A playlist the user made in Plex (Setlistarr doesn't manage it)."""
+        self.playlists[key] = {"ratingKey": key, "title": title, "_keys": list(track_keys),
+                               "_ids": [self._item_id() for _ in track_keys], "smart": smart, "updatedAt": 100}
 
     def _item_id(self) -> int:
         self._next_item += 1
