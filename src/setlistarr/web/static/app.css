@@ -33,8 +33,11 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
   width: 210px; flex-shrink: 0; background: var(--bg-sidebar);
   border-right: 1px solid var(--border); display: flex; flex-direction: column;
 }
-.brand { padding: 18px 20px; font-size: 18px; font-weight: 700; letter-spacing: .3px; }
-.brand span { color: var(--accent); }
+.brand { display: flex; align-items: center; gap: 10px; padding: 16px 20px; font-size: 18px; font-weight: 700;
+         letter-spacing: .3px; color: var(--text); text-decoration: none; }
+a.brand:hover { text-decoration: none; }
+.brand img { width: 32px; height: 32px; flex-shrink: 0; }
+.brand-text span { color: var(--accent); }
 .nav a {
   display: flex; align-items: center; gap: 10px; padding: 10px 20px;
   color: var(--text-dim); border-left: 3px solid transparent;

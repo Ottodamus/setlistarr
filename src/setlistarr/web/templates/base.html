@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Setlistarr{% endblock %} · Setlistarr</title>
   <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+  <link rel="icon" href="/static/icons/favicon.ico" sizes="any">
+  <link rel="icon" href="/static/icons/icon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/static/icons/site.webmanifest">
+  <meta name="theme-color" content="#2a2e52">
   <script src="/static/vendor/htmx.min.js"></script>
   <script src="/static/vendor/htmx-sse.js"></script>
   <script src="/static/vendor/Sortable.min.js"></script>
@@ -14,7 +19,7 @@
 {% set path = request.url.path %}
 <div class="shell">
   <aside class="sidebar">
-    <div class="brand">Setlist<span>arr</span></div>
+    <a class="brand" href="/"><img src="/static/icons/logo.png" alt="" width="32" height="32"><span class="brand-text">Setlist<span>arr</span></span></a>
     <nav class="nav">
       <a href="/" class="{{ 'active' if path == '/' }}">Home</a>
       <div class="section">Make</div>

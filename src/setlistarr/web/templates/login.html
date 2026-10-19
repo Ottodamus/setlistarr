@@ -5,10 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sign in · Setlistarr</title>
   <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+  <link rel="icon" href="/static/icons/favicon.ico" sizes="any">
+  <link rel="icon" href="/static/icons/icon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/static/icons/site.webmanifest">
+  <meta name="theme-color" content="#2a2e52">
 </head>
 <body class="auth-page">
   <form method="post" action="/login" class="card auth-card">
-    <div class="brand">Setlist<span>arr</span></div>
+    <div class="brand"><img src="/static/icons/logo.png" alt="" width="32" height="32"><span class="brand-text">Setlist<span>arr</span></span></div>
     {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
     <input type="hidden" name="next" value="{{ next }}">
     <label>Username<input type="text" name="username" autocomplete="username" required autofocus></label>

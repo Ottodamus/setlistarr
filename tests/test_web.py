@@ -89,3 +89,10 @@ def test_empty_env_values_from_compose_are_treated_as_unset(monkeypatch, conn):
     assert Settings(conn).source("plex_url") != "env"
     with TestClient(create_app()) as c:
         assert c.get("/health").status_code == 200
+
+
+def test_icons_are_linked_and_served(client):
+    page = client.get("/library").text
+    assert 'href="/static/icons/favicon.ico"' in page and 'src="/static/icons/logo.png"' in page
+    for path in ("favicon.ico", "icon-32.png", "logo.png", "apple-touch-icon.png", "icon-192.png", "site.webmanifest"):
+        assert client.get(f"/static/icons/{path}").status_code == 200, path

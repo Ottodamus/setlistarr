@@ -45,6 +45,9 @@ setlistarr = [
     "web/static/*.css",
     "web/static/*.js",
     "web/static/vendor/*.js",
+    "web/static/icons/*.png",
+    "web/static/icons/*.ico",
+    "web/static/icons/*.webmanifest",
 ]
 
 [tool.pytest.ini_options]
