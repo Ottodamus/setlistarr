@@ -266,6 +266,8 @@ input[type=file] { width: 100%; }
 .table-wrap { max-width: 100%; overflow-x: auto; }
 td, th { overflow-wrap: anywhere; }
 td.num, th.num, td.nowrap, th.nowrap, .badge { overflow-wrap: normal; }
+/* column headers are short labels: never wrap or split them ("RAT/ING") */
+th { overflow-wrap: normal; white-space: nowrap; }
 /* text columns may wrap mid-word, but never collapse to a one-letter sliver */
 td:not(.num):not(.nowrap):not(.actions):not(.handle):not(.row-actions) { min-width: 6.5em; }
 td.actions { text-align: right; }

@@ -132,6 +132,12 @@ DETECT = r"""
       }
     }
   }
+  for (const th of document.querySelectorAll('th')) {
+    const r = th.getBoundingClientRect(), lh = parseFloat(getComputedStyle(th).lineHeight) || 18;
+    const pad = parseFloat(getComputedStyle(th).paddingTop) + parseFloat(getComputedStyle(th).paddingBottom);
+    if (r.width && th.innerText.trim() && r.height - pad > lh * 1.5)
+      out.push({msg: 'column header wraps: ' + desc(th)});
+  }
   const h = document.documentElement.scrollHeight;
   if (h > 6000) out.push({msg: 'page is ' + h + 'px tall (collapsed columns?)'});
   for (const w of document.querySelectorAll('.draft-editor .table-wrap'))
