@@ -10,7 +10,7 @@ from ...config import Settings
 from ...generation.constraints import Constraints
 from ...generation.runner import manager
 from ...llm.base import ProviderError
-from ...llm.registry import cost_hint, list_providers
+from ...llm.registry import cost_hint, text_providers
 from ...services.generations import get_generation, load_draft, recent_generations
 from ..deps import get_conn, templates
 
@@ -20,7 +20,7 @@ CONSTRAINT_FIELDS = ("target_minutes", "max_per_artist", "year_min", "year_max",
 
 
 def _page(request, conn, *, error=None, form=None, status_code=200):
-    providers = list_providers(conn)
+    providers = text_providers(conn)
     return templates.TemplateResponse(
         request,
         "generate.html",

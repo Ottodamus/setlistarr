@@ -50,6 +50,13 @@ git-ignored - never in this file.
 - **Auth** (`web/auth.py`): one admin, scrypt hashes, signed session cookie, SameSite=Lax + Origin check
   on non-GET. Public: `/health`, `/login`, `/setup`, `/static/*`. `ADMIN_USERNAME`/`ADMIN_PASSWORD` env
   pin the account; `SETLISTARR_AUTH_DISABLED=1` turns auth off (tests set this in conftest).
+- **Covers** (`services/covers.py`): stored as square JPEG <=1024 px in `/config/covers`. Image-model
+  providers (`ProviderConfig.is_image_model`) are cover-only and must never be offered for playlist
+  generation (`text_providers`). Text models draw SVG, which MUST go through `sanitize_svg` before
+  `render_svg` (resvg would otherwise read local files via `<image href>`); never serve model SVG to
+  browsers. Fonts: the image ships DejaVu and `render_svg` maps generic families to it. A push only
+  uploads the cover when it changed (`managed_playlists.cover_id`); a failed cover never fails a push
+  or a recipe run.
 - `/health` returns 200 when the app+DB work even if Plex is down (status `degraded`) so Docker
   doesn't restart-loop on a Plex outage.
 - Settings: env var (if defined for that setting) > `settings` table > default. Secrets are never

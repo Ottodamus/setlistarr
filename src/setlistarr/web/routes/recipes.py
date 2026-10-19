@@ -9,7 +9,8 @@ from fastapi.responses import RedirectResponse
 
 from ...config import Settings
 from ...generation.constraints import Constraints
-from ...llm.registry import list_providers
+from ...llm.registry import text_providers
+from ...services.covers import cover_providers
 from ...services import recipes as svc
 from ..deps import get_conn, templates
 
@@ -23,7 +24,8 @@ def _form_page(request, conn, recipe: dict | None, *, prefill: dict | None = Non
     c = r.get("constraints") or Constraints()
     return templates.TemplateResponse(
         request, "recipe_form.html",
-        {"r": r, "c": c, "providers": list_providers(conn), "presets": svc.PRESETS, "error": error},
+        {"r": r, "c": c, "providers": text_providers(conn), "presets": svc.PRESETS, "error": error,
+         "cover_providers": cover_providers(conn)},
         status_code=status_code,
     )
 
@@ -40,7 +42,7 @@ def new_recipe(request: Request, draft_id: int | None = None, conn: sqlite3.Conn
     prefill = None
     if draft_id:
         row = conn.execute(
-            """SELECT d.title, g.prompt, g.provider_id, g.mode_requested, g.constraints_json,
+            """SELECT d.title, d.cover_id, g.prompt, g.provider_id, g.mode_requested, g.constraints_json,
                       (SELECT p.plex_playlist_key FROM pushes p JOIN managed_playlists m
                          ON m.plex_playlist_key = p.plex_playlist_key
                        WHERE p.draft_id = d.id ORDER BY p.id DESC LIMIT 1) AS pushed_key
@@ -56,7 +58,8 @@ def new_recipe(request: Request, draft_id: int | None = None, conn: sqlite3.Conn
             prefill = {"name": row["title"], "prompt": row["prompt"], "provider_id": row["provider_id"],
                        "mode": None, "constraints": c, "playlist_title": row["title"],
                        "plex_playlist_key": row["pushed_key"], "schedule_cron": "0 6 * * 1", "enabled": 1,
-                       "avoid_repeats": 1}
+                       "avoid_repeats": 1, "cover_id": row["cover_id"],
+                       "cover_mode": "keep" if row["cover_id"] else "none"}
     return _form_page(request, conn, None, prefill=prefill)
 
 
@@ -83,6 +86,9 @@ async def save(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
         "mode": form.get("mode") or None, "constraints": c, "schedule_cron": cron,
         "enabled": "enabled" in form, "avoid_repeats": "avoid_repeats" in form,
         "playlist_title": form.get("playlist_title"), "plex_playlist_key": form.get("plex_playlist_key") or None,
+        "cover_mode": form.get("cover_mode") or "none", "cover_prompt": form.get("cover_prompt"),
+        "cover_provider_id": int(form["cover_provider_id"]) if str(form.get("cover_provider_id", "")).isdigit() else None,
+        "cover_id": int(form["cover_id"]) if str(form.get("cover_id", "")).isdigit() else None,
     }
     error = None
     if cron:

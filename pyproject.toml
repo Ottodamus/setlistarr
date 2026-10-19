@@ -18,6 +18,8 @@ dependencies = [
     "mcp>=2.0,<3",
     "anthropic>=1.15,<2",
     "openai>=3.0,<4",
+    "pillow>=10.4",
+    "resvg-py>=0.5,<1",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +50,7 @@ setlistarr = [
     "web/static/*.css",
     "web/static/*.js",
     "web/static/vendor/*.js",
+    "web/static/vendor/*.css",
     "web/static/icons/*.png",
     "web/static/icons/*.ico",
     "web/static/icons/*.webmanifest",

@@ -13,7 +13,7 @@ from typing import Any
 
 from ..config import Settings
 from ..core.plex.client import PlexClient, PlexError, PlexNotFound, client_from_settings
-from ..core.plex.playlists import create_playlist, replace_playlist, web_url
+from ..core.plex.playlists import create_playlist, replace_playlist, upload_poster, web_url
 from ..generation.draft import fetch_tracks
 from ..logs import get_logger
 
@@ -82,12 +82,16 @@ def push_draft(
             res = create_playlist(plex, title, push_keys, summary)
             action, rating_key = "created", res["ratingKey"]
         url = web_url(settings.get("plex_url"), plex.machine_id, rating_key)
+        cover_status, cover_error = _push_cover(conn, plex, draft_id, rating_key, fresh=action != "replaced")
     finally:
         if own:
             plex.close()
 
     with conn:
         register_managed(conn, rating_key, title, len(push_keys), draft_id=draft_id)
+        if cover_status == "uploaded":
+            conn.execute("UPDATE managed_playlists SET cover_id = (SELECT cover_id FROM drafts WHERE id = ?) "
+                         "WHERE plex_playlist_key = ?", (draft_id, rating_key))
         conn.execute(
             "INSERT INTO pushes(draft_id, plex_playlist_key, title, action, track_count, skipped_json, pushed_at) "
             "VALUES(?,?,?,?,?,?,?)",
@@ -97,4 +101,29 @@ def push_draft(
     log.info("push.done", draft_id=draft_id, action=action, rating_key=rating_key, tracks=len(push_keys),
              clear_method=res.get("clear_method"))
     return {"action": action, "ratingKey": rating_key, "track_count": len(push_keys), "skipped": skipped,
-            "url": url, "title": title}
+            "url": url, "title": title, "cover": cover_status, "cover_error": cover_error}
+
+
+def _push_cover(conn, plex: PlexClient, draft_id: int, rating_key: str, *, fresh: bool) -> tuple[str, str | None]:
+    """Upload the draft's cover as the playlist poster. Returns (status, error) where status is
+    'none' (draft has no cover - Plex's is left alone), 'unchanged', 'uploaded' or 'failed'.
+    A failed cover upload never fails the push."""
+    from .covers import cover_bytes
+
+    row = conn.execute("SELECT cover_id FROM drafts WHERE id = ?", (draft_id,)).fetchone()
+    cover_id = row["cover_id"] if row else None
+    if not cover_id:
+        return "none", None
+    current = conn.execute("SELECT cover_id FROM managed_playlists WHERE plex_playlist_key = ?",
+                           (rating_key,)).fetchone()
+    if not fresh and current and current["cover_id"] == cover_id:
+        return "unchanged", None
+    data = cover_bytes(conn, cover_id)
+    if data is None:
+        return "failed", "the cover file is missing from /config/covers"
+    try:
+        upload_poster(plex, rating_key, data)
+    except PlexError as e:
+        log.warning("push.cover_failed", rating_key=rating_key, error=str(e))
+        return "failed", str(e)
+    return "uploaded", None

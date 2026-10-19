@@ -7,6 +7,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     SETLISTARR_CONFIG_DIR=/config \
     SETLISTARR_PORT=8787
 
+# Fonts for text in AI "designed art" covers (rendered by resvg).
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src

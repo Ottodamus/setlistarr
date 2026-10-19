@@ -61,9 +61,11 @@ class PlexClient:
         self.close()
 
     # ------------------------------------------------------------------ #
-    def request(self, method: str, path: str, params: dict | None = None) -> dict[str, Any]:
+    def request(
+        self, method: str, path: str, params: dict | None = None, *, content: bytes | None = None
+    ) -> dict[str, Any]:
         try:
-            resp = self._http.request(method, path, params=params)
+            resp = self._http.request(method, path, params=params, content=content)
         except httpx.TimeoutException as e:
             raise PlexError(f"Plex timed out at {self.base_url} ({method} {path})") from e
         except httpx.TransportError as e:

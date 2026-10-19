@@ -30,8 +30,9 @@ def history(request: Request, page: int = 1, status: str = "", conn: sqlite3.Con
     spend = dict(conn.execute(
         """SELECT COALESCE(SUM(cost_usd), 0) AS all_time,
                   COALESCE(SUM(CASE WHEN created_at >= datetime('now', '-30 days') THEN cost_usd END), 0) AS last_30d,
-                  COUNT(*) AS runs, SUM(cost_usd IS NULL AND status = 'ok') AS unpriced
-           FROM generations"""
+                  SUM(cost_usd IS NULL AND status = 'ok') AS unpriced
+           FROM (SELECT cost_usd, created_at, status FROM generations
+                 UNION ALL SELECT cost_usd, created_at, 'ok' FROM covers WHERE kind != 'upload')"""
     ).fetchone())
     plex_url = Settings(conn).get("plex_url") or ""
     return templates.TemplateResponse(

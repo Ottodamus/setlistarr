@@ -20,5 +20,7 @@
   <div id="draft" hx-get="/drafts/{{ draft.id }}/editor" hx-trigger="load" hx-swap="outerHTML">
     <div class="card dim">Loading draft…</div>
   </div>
+  {# outside #draft so editing tracks doesn't reset a crop in progress #}
+  <div id="cover-widget" hx-get="/covers/widget?draft_id={{ draft.id }}" hx-trigger="load" hx-swap="outerHTML"></div>
 {% endif %}
 </div>

@@ -1,0 +1,103 @@
+{% set owner_json = ('{"draft_id": "%s"}' % draft_id) if draft_id else ('{"recipe_id": "%s"}' % recipe_id) %}
+{% set kinds = {'upload': 'Uploaded', 'ai_image': 'AI artwork', 'ai_art': 'AI designed art'} %}
+<div id="cover-widget" class="card cover-widget" data-owner-field="{{ 'draft_id' if draft_id else 'recipe_id' }}"
+     data-owner-id="{{ draft_id or recipe_id }}">
+  <h2>Cover</h2>
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+  {% if notice %}<div class="alert alert-ok">{{ notice }}</div>{% endif %}
+  {% for p in deprecated %}
+    <div class="alert alert-warn small">{{ p.name }} uses <code>{{ p.model }}</code>, which OpenAI shuts down on
+      {{ p.deprecation[0] }}. Switch it to {{ p.deprecation[1] }} under <a href="/settings/providers/{{ p.id }}">AI providers</a>.</div>
+  {% endfor %}
+
+  <div class="cover-layout">
+    <div class="cover-current">
+      {% if cover %}
+        <img src="/covers/{{ cover.id }}.jpg" alt="Current cover" class="cover-img">
+        <div class="small dim" style="margin:6px 0">
+          {{ kinds[cover.kind] }}{% if cover.model %} · {{ cover.model }}{% endif %} · {{ cover.created_at|ago }}
+          {% if cover.kind != 'upload' %}· {% if cover.cost_usd is none %}cost ?{% elif cover.cost_usd == 0 %}free{% else %}${{ '%.3f'|format(cover.cost_usd) }}{% endif %}{% endif %}
+        </div>
+        <a class="btn" href="/covers/{{ cover.id }}.jpg?download=1">Download</a>
+        <button type="button" class="btn" hx-post="/covers/select" hx-vals='{{ owner_json[:-1] }}, "cover_id": "none"}'
+                hx-target="#cover-widget" hx-swap="outerHTML">Remove</button>
+      {% else %}
+        <div class="cover-placeholder">No cover<br><span class="small">{% if draft_id %}Plex keeps its own artwork{% else %}Pick one for “Keep”{% endif %}</span></div>
+      {% endif %}
+    </div>
+
+    <div class="cover-actions">
+      <details class="cover-section">
+        <summary>Upload an image</summary>
+        <input type="file" accept="image/jpeg,image/png,image/webp" class="cover-file" aria-label="Choose cover image">
+        <div class="cover-crop" hidden>
+          <div class="crop-stage"><img class="crop-src" alt="Image to crop"></div>
+          <div class="crop-side">
+            <div class="cover-preview" aria-hidden="true"></div>
+            <div class="small dim">Preview (square, as Plex shows it)</div>
+            <button type="button" class="btn primary cover-use">Use this crop</button>
+            <button type="button" class="btn cover-cancel">Cancel</button>
+          </div>
+        </div>
+        <div class="small dim">JPEG, PNG or WebP, up to 15 MB. Drag the box to choose the square part; scroll to zoom.</div>
+      </details>
+
+      <details class="cover-section" {{ 'open' if error and not cover }}>
+        <summary>Generate with AI</summary>
+        <form hx-post="/covers/generate" hx-target="#cover-widget" hx-swap="outerHTML" hx-indicator="#cover-spin" hx-disabled-elt="find button">
+          <input type="hidden" name="{{ 'draft_id' if draft_id else 'recipe_id' }}" value="{{ draft_id or recipe_id }}">
+          <textarea name="prompt" rows="3" style="width:100%">{{ prompt }}</textarea>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+            <select name="provider_id" aria-label="Provider for the cover">
+              {% set images = providers|selectattr('method', 'equalto', 'image')|list %}
+              {% set arts = providers|selectattr('method', 'equalto', 'art')|list %}
+              {% if images %}<optgroup label="Artwork (image model)">
+                {% for p in images %}<option value="{{ p.id }}" {{ 'selected' if p.id == selected_provider }}>{{ p.label }}</option>{% endfor %}
+              </optgroup>{% endif %}
+              {% if arts %}<optgroup label="Designed art (text model draws vector art)">
+                {% for p in arts %}<option value="{{ p.id }}" {{ 'selected' if p.id == selected_provider }}>{{ p.label }}</option>{% endfor %}
+              </optgroup>{% endif %}
+            </select>
+            <button class="btn primary" type="submit" {{ 'disabled' if not providers }}>Generate cover</button>
+            <span id="cover-spin" class="spin"></span><span class="small dim">can take up to a minute</span>
+          </div>
+        </form>
+        <details class="cover-info">
+          <summary>ⓘ What to expect from each option</summary>
+          <ul>
+            <li><b>Artwork - image models</b> (an OpenAI-compatible provider set to an image model such as
+              <code>gpt-image-2.5-flare</code>): illustrated or photo-style art made by OpenAI's Images API.
+              Takes 10-60 s. Billed by OpenAI per image - a few cents for a 1024×1024 image at medium quality
+              (set quality per provider). OpenAI may refuse prompts naming real artists, bands or people.
+              <code>chatgpt-image-latest</code>, <code>gpt-image-1</code> and <code>gpt-image-1.5</code> stop
+              working on 2026-12-01.</li>
+            <li><b>Designed art - text models</b> (Claude, ChatGPT chat models, Ollama): these models can't make
+              pictures, so they <i>draw</i> the cover as vector graphics - bold shapes, gradients, simple type -
+              which Setlistarr renders to an image. Not photographic. Claude costs roughly 3-10¢ per cover
+              (less on Sonnet/Haiku); local Ollama is free but small models make simpler art and sometimes need a
+              second try.</li>
+            <li>Every cover is saved as a square 1024×1024 JPEG, sent to Plex as the playlist poster when you push
+              (or when a recipe refreshes), and can be downloaded. Cover costs count toward the AI spend in History.</li>
+            {% if recipe_id %}<li><b>Recipes:</b> “Keep” uses this cover on every refresh; “New cover every run”
+              generates a fresh one each time (and costs each time).</li>{% endif %}
+          </ul>
+        </details>
+      </details>
+
+      {% if history|length > 1 or (history and not cover) %}
+      <div class="cover-history">
+        <div class="small dim">Previous covers</div>
+        <div class="cover-thumbs">
+          {% for h in history %}
+            <button type="button" class="cover-thumb {{ 'current' if cover and h.id == cover.id }}"
+                    title="{{ kinds[h.kind] }} · {{ h.created_at|ago }}"
+                    hx-post="/covers/select" hx-vals='{{ owner_json[:-1] }}, "cover_id": "{{ h.id }}"}'
+                    hx-target="#cover-widget" hx-swap="outerHTML">
+              <img src="/covers/{{ h.id }}.jpg" alt="Use this cover" loading="lazy"></button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

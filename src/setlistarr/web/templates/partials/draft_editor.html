@@ -7,6 +7,8 @@
     in Plex with {{ pushed.track_count }} tracks.
     {% if pushed.action == 'recreated' %}The old playlist had been deleted in Plex, so a new one was made.{% endif %}
     {% if pushed.skipped %}Skipped {{ pushed.skipped|length }} track(s) no longer in the library.{% endif %}
+    {% if pushed.cover == 'uploaded' %}Cover updated.{% elif pushed.cover == 'unchanged' %}Cover unchanged.{% endif %}
+    {% if pushed.cover_error %}<div style="color:var(--warn)">The playlist was pushed, but the cover upload failed: {{ pushed.cover_error }}</div>{% endif %}
     <a href="{{ pushed.url }}" target="_blank" rel="noopener">Open in Plex ↗</a>
   </div>
   {% endif %}

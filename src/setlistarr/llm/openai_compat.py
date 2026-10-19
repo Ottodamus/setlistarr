@@ -28,6 +28,7 @@ class OpenAICompatProvider:
         opts = options or {}
         self.temperature = opts.get("temperature")
         self.max_output_tokens = opts.get("max_output_tokens")
+        self.image_quality = opts.get("image_quality") or "medium"
         kwargs: dict[str, Any] = {
             # Local servers usually ignore the key, but the SDK insists on one.
             "api_key": api_key or "not-needed",
@@ -132,6 +133,35 @@ class OpenAICompatProvider:
             stop_reason=choice.finish_reason,
             model=getattr(resp, "model", None) or self.model,
         )
+
+    def generate_image(self, prompt: str, *, size: str = "1024x1024") -> tuple[bytes, Usage, str]:
+        """Image API (v1/images/generations). GPT image models return base64 by default; DALL-E
+        needs response_format. Returns (image bytes, usage, model)."""
+        import base64
+
+        params: dict[str, Any] = {"model": self.model, "prompt": prompt, "size": size, "n": 1}
+        if self.model.lower().startswith("dall-e"):
+            params["response_format"] = "b64_json"
+        else:
+            params["quality"] = self.image_quality
+        try:
+            resp = self.client.images.generate(**params)
+        except openai.BadRequestError as e:
+            msg = _msg(e)
+            if "safety" in msg.lower() or "moderation" in msg.lower() or "content_policy" in msg.lower():
+                raise ProviderError(f"{self._label()} refused this cover prompt (content policy). Try rewording it.") from e
+            raise ProviderError(f"{self._label()} rejected the image request: {msg}") from e
+        except openai.APIError as e:
+            raise self._map_error(e) from e
+        item = (resp.data or [None])[0]
+        if item is None or not getattr(item, "b64_json", None):
+            raise ProviderError(f"{self._label()} returned no image")
+        u = getattr(resp, "usage", None)
+        usage = Usage(
+            input_tokens=getattr(u, "input_tokens", 0) or 0 if u else 0,
+            output_tokens=getattr(u, "output_tokens", 0) or 0 if u else 0,
+        )
+        return base64.b64decode(item.b64_json), usage, self.model
 
     def list_models(self) -> list[str]:
         try:

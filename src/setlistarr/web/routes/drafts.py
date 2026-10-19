@@ -12,7 +12,7 @@ from ...core.plex.client import PlexError
 from ...generation.constraints import Constraints
 from ...generation.runner import manager
 from ...llm.base import ProviderError
-from ...llm.registry import list_providers
+from ...llm.registry import text_providers
 from ...services import drafts as svc
 from ...services.push import managed_playlists, push_draft
 from ..deps import get_conn, templates
@@ -30,7 +30,7 @@ def render_editor(request: Request, conn: sqlite3.Connection, draft_id: int, **e
     return templates.TemplateResponse(
         request, "partials/draft_editor.html",
         {"d": d, "managed": managed, "default_target": last_push if last_push in managed_keys else "new",
-         "providers": list_providers(conn), **extra},
+         "providers": text_providers(conn), **extra},
     )
 
 

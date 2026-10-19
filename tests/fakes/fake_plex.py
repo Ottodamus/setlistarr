@@ -23,7 +23,8 @@ class FakePlex:
     items: dict[str, dict] = field(default_factory=dict)  # ratingKey -> item (artists, albums, tracks)
     playlists: dict[str, dict] = field(default_factory=dict)
     log: list[str] = field(default_factory=list)
-    bulk_clear: bool = True  # False = server without DELETE /playlists/{id}/items
+    bulk_clear: bool = True
+    posters: dict[str, list[bytes]] = field(default_factory=dict)  # playlist ratingKey -> uploaded images  # False = server without DELETE /playlists/{id}/items
     now: int = 1_700_000_000
     _next_key: int = 9000
     _next_item: int = 5000
@@ -109,6 +110,13 @@ class FakePlex:
             page = rows[start : start + size]
             return self._json({"size": len(page), "totalSize": len(rows),
                                "Metadata": [self._public(i, False) for i in page]})
+
+        m = re.fullmatch(r"/library/metadata/(\d+)/posters", path)
+        if m and req.method == "POST":
+            if m.group(1) not in self.playlists:
+                return Response("not found", 404)
+            self.posters.setdefault(m.group(1), []).append(req.get_data())
+            return Response("", 200)
 
         m = re.fullmatch(r"/library/metadata/([\d,]+)", path)
         if m:

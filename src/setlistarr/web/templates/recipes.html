@@ -11,7 +11,8 @@
   <tbody>
   {% for r in recipes %}
     <tr {% if not r.enabled %}style="opacity:.6"{% endif %}>
-      <td><a href="/recipes/{{ r.id }}">{{ r.name }}</a><div class="dim small">{{ r.prompt[:90] }}{% if r.prompt|length > 90 %}…{% endif %}</div></td>
+      <td>{% if r.cover_id %}<img src="/covers/{{ r.cover_id }}.jpg" alt="" class="recipe-thumb">{% endif %}<a href="/recipes/{{ r.id }}">{{ r.name }}</a>
+        {% if r.cover_mode == 'renew' %}<span class="badge" title="New AI cover every refresh">new cover each run</span>{% endif %}<div class="dim small">{{ r.prompt[:90] }}{% if r.prompt|length > 90 %}…{% endif %}</div></td>
       <td class="small">{{ r.schedule_text }}{% if not r.enabled %} <span class="badge">paused</span>{% elif next_runs.get(r.id) %}<div class="dim">next {{ next_runs[r.id].strftime('%a %b %d %H:%M') }}</div>{% endif %}</td>
       <td class="hide-sm dim small">{{ r.provider_name or 'default provider' }}</td>
       <td class="small">{% if r.plex_playlist_key %}{{ r.playlist_current_title or r.playlist_title or r.name }} <span class="dim">· {{ r.playlist_tracks or '?' }} tracks</span>{% else %}<span class="dim">created on first run</span>{% endif %}</td>

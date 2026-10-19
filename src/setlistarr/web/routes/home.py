@@ -5,7 +5,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, Request
 
 from ...config import Settings
-from ...llm.registry import cost_hint, list_providers
+from ...llm.registry import cost_hint, text_providers
 from ...services.generations import recent_generations
 from ...services.recipes import list_recipes
 from ..deps import get_conn, templates
@@ -15,12 +15,13 @@ router = APIRouter()
 
 @router.get("/")
 def home(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
-    providers = list_providers(conn)
+    providers = text_providers(conn)
     lib = dict(conn.execute(
         "SELECT COALESCE(SUM(track_count), 0) AS tracks, MAX(last_sync_at) AS last_sync, "
         "COUNT(*) FILTER (WHERE enabled = 1) AS sections FROM libraries").fetchone())
     spend = conn.execute(
-        "SELECT COALESCE(SUM(cost_usd), 0) FROM generations WHERE created_at >= datetime('now', '-30 days')"
+        "SELECT COALESCE(SUM(cost_usd), 0) FROM (SELECT cost_usd, created_at FROM generations UNION ALL "
+        "SELECT cost_usd, created_at FROM covers) WHERE created_at >= datetime('now', '-30 days')"
     ).fetchone()[0]
     next_runs = request.app.state.scheduler.recipe_next_runs()
     recipes = sorted(

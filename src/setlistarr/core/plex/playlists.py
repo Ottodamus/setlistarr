@@ -103,6 +103,12 @@ def replace_playlist(
     return {"ratingKey": rating_key, "track_count": len(keys), "clear_method": method}
 
 
+def upload_poster(plex: PlexClient, rating_key: str, image: bytes) -> None:
+    """Set a playlist's poster from raw image bytes (plexapi PosterMixin.uploadPoster(filepath=...):
+    POST /library/metadata/{ratingKey}/posters with the file as the body)."""
+    plex.request("POST", f"/library/metadata/{rating_key}/posters", content=image)
+
+
 def web_url(plex_url: str, machine_id: str, rating_key: str) -> str:
     return (
         f"{plex_url.rstrip('/')}/web/index.html#!/server/{machine_id}/playlist"

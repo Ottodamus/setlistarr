@@ -39,8 +39,13 @@ Then open `http://<host>:8787`:
    and *Regenerate* around them (optionally with a tweaked prompt).
 7. **Push**: create a new Plex playlist, or replace one Setlistarr made before - in place, so
    it keeps its identity in Plexamp. Playlists you made yourself are never touched.
-8. **Themes**: Settings → Appearance - Dark (default), Light, Midnight or Synthwave.
-9. **Recipes**: save a prompt (or "Save as recipe" from a draft) with a schedule - daily, weekly,
+8. **Covers**: on a draft, upload a picture (crop it to a square with a live preview) or
+   generate one with AI, then push - it becomes the Plex playlist poster. AI covers come from an
+   OpenAI image model (add an OpenAI-compatible provider whose model is e.g.
+   `gpt-image-2.5-flare`) or, with Claude/ChatGPT/Ollama, as vector art the model draws. Every cover
+   is downloadable; recipes can keep one cover or make a new one on every refresh.
+9. **Themes**: Settings → Appearance - Dark (default), Light, Midnight or Synthwave.
+10. **Recipes**: save a prompt (or "Save as recipe" from a draft) with a schedule - daily, weekly,
    or any cron. Each run regenerates and replaces the recipe's playlist in place; "avoid repeats"
    keeps the previous refresh's tracks out. A failed run leaves the playlist as it was.
 

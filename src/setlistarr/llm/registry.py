@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,7 +31,8 @@ KINDS = {
         "model": "",
         "key_env": "OPENAI_API_KEY",
         "tool_mode": "auto",
-        "options": {"temperature": None, "max_steps": 30, "tool_patience": 20, "token_budget": 400_000},
+        "options": {"temperature": None, "max_steps": 30, "tool_patience": 20, "token_budget": 400_000,
+                    "image_quality": "medium"},
     },
     "ollama": {
         "label": "Ollama (native)",
@@ -44,6 +46,14 @@ KINDS = {
     },
 }
 LOCAL_KINDS = {"ollama"}
+
+# OpenAI-compatible providers whose model is an image model: used for covers only.
+IMAGE_MODEL_RE = re.compile(r"^(gpt-image|chatgpt-image|dall-e)", re.I)
+# OpenAI announced 2026-06-02; shutdown 2026-12-01 (developers.openai.com/api/docs/deprecations).
+DEPRECATED_IMAGE_MODELS = {
+    m: ("2026-12-01", "gpt-image-2.5-flare or gpt-image-2.5-sunburst")
+    for m in ("chatgpt-image-latest", "gpt-image-1", "gpt-image-1.5", "gpt-image-1-mini")
+}
 
 
 @dataclass
@@ -73,6 +83,15 @@ class ProviderConfig:
 
     def effective_options(self) -> dict[str, Any]:
         return {**KINDS[self.kind]["options"], **{k: v for k, v in self.options.items() if v not in (None, "")}}
+
+    @property
+    def is_image_model(self) -> bool:
+        return self.kind == "openai_compat" and bool(IMAGE_MODEL_RE.match(self.model or ""))
+
+    @property
+    def deprecation(self) -> tuple[str, str] | None:
+        """(shutdown date, replacement) if this provider's image model is being retired."""
+        return DEPRECATED_IMAGE_MODELS.get((self.model or "").lower()) if self.is_image_model else None
 
     @property
     def is_local(self) -> bool:
@@ -111,13 +130,19 @@ def list_providers(conn: sqlite3.Connection) -> list[ProviderConfig]:
     return [ProviderConfig.from_row(r) for r in conn.execute("SELECT * FROM providers ORDER BY name")]
 
 
+def text_providers(conn: sqlite3.Connection) -> list[ProviderConfig]:
+    """Providers that can build playlists (everything except image-only models)."""
+    return [p for p in list_providers(conn) if not p.is_image_model]
+
+
 def get_provider(conn: sqlite3.Connection, provider_id: int | None = None) -> ProviderConfig | None:
-    """By id, else the default, else the only/first configured provider."""
+    """By id, else the default playlist provider, else the first one that can build playlists."""
     if provider_id:
         row = conn.execute("SELECT * FROM providers WHERE id = ?", (provider_id,)).fetchone()
         return ProviderConfig.from_row(row) if row else None
-    row = conn.execute("SELECT * FROM providers ORDER BY is_default DESC, id LIMIT 1").fetchone()
-    return ProviderConfig.from_row(row) if row else None
+    rows = [ProviderConfig.from_row(r) for r in
+            conn.execute("SELECT * FROM providers ORDER BY is_default DESC, id")]
+    return next((p for p in rows if not p.is_image_model), None)
 
 
 def get_provider_by_name(conn: sqlite3.Connection, name: str) -> ProviderConfig | None:

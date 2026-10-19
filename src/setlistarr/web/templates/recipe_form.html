@@ -39,6 +39,27 @@
       <label class="small dim">Exclude artists<br><input type="text" name="exclude_artists" value="{{ c.exclude_artists|join(', ') if 'exclude_artists' in c.locked else '' }}" style="width:100%"></label>
       <label class="small dim">Exclude tags<br><input type="text" name="exclude_tags" value="{{ c.exclude_tags|join(', ') if 'exclude_tags' in c.locked else '' }}" style="width:100%"></label>
     </div></div>
+  <div class="form-row"><label>Cover</label>
+    <div>
+      {% set cm = r.get('cover_mode') or 'none' %}
+      {% if r.get('cover_id') and not r.id %}<input type="hidden" name="cover_id" value="{{ r.cover_id }}">{% endif %}
+      <label><input type="radio" name="cover_mode" value="none" {{ 'checked' if cm == 'none' }}> Don't touch the Plex cover</label><br>
+      <label><input type="radio" name="cover_mode" value="keep" {{ 'checked' if cm == 'keep' }}> Keep one cover on every refresh</label>
+        {% if r.get('cover_id') and not r.id %}<span class="dim small">(the draft's cover)</span>{% endif %}<br>
+      <label><input type="radio" name="cover_mode" value="renew" {{ 'checked' if cm == 'renew' }}> New AI cover every refresh</label>
+      <div class="cover-renew-opts" style="margin:8px 0 0 22px;display:grid;gap:6px;max-width:640px">
+        <textarea name="cover_prompt" rows="2" placeholder="Cover prompt - leave empty to describe each new playlist automatically">{{ r.get('cover_prompt') or '' }}</textarea>
+        <select name="cover_provider_id" aria-label="Cover provider">
+          <option value="">Image model if configured, otherwise the default provider</option>
+          {% for p in cover_providers %}<option value="{{ p.id }}" {{ 'selected' if r.get('cover_provider_id') == p.id }}>{{ p.label }} ({{ 'artwork' if p.method == 'image' else 'designed art' }})</option>{% endfor %}
+        </select>
+      </div>
+      <div class="help">{% if r.id %}Upload or generate the “keep” cover below.{% else %}Save the recipe first to upload or generate its cover.{% endif %}
+        A failed new cover never stops a refresh - the previous cover is kept.</div>
+    </div></div>
   <button class="btn primary" type="submit">Save recipe</button> <a class="btn" href="/recipes">Cancel</a>
 </form>
+{% if r.id %}
+<div hx-get="/covers/widget?recipe_id={{ r.id }}" hx-trigger="load" hx-swap="outerHTML"></div>
+{% endif %}
 {% endblock %}

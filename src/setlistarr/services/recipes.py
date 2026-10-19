@@ -75,24 +75,30 @@ def save_recipe(conn: sqlite3.Connection, data: dict[str, Any], recipe_id: int |
     if not name or not prompt:
         raise ValueError("A recipe needs a name and a prompt")
     c: Constraints = data["constraints"]
+    cover_mode = data.get("cover_mode") or "none"
+    if cover_mode not in ("none", "keep", "renew"):
+        raise ValueError("Unknown cover option")
     values = (
         name, prompt, data.get("provider_id"), data.get("mode") or None, json.dumps(c.to_dict()),
         (data.get("schedule_cron") or "").strip() or None, int(bool(data.get("enabled", True))),
         int(bool(data.get("avoid_repeats", True))), (data.get("playlist_title") or "").strip() or None,
+        cover_mode, (data.get("cover_prompt") or "").strip() or None, data.get("cover_provider_id"),
     )
     now = _now()
     with conn:
         if recipe_id:
             conn.execute(
                 "UPDATE recipes SET name=?, prompt=?, provider_id=?, mode=?, constraints_json=?, schedule_cron=?, "
-                "enabled=?, avoid_repeats=?, playlist_title=?, updated_at=? WHERE id=?",
+                "enabled=?, avoid_repeats=?, playlist_title=?, cover_mode=?, cover_prompt=?, cover_provider_id=?, "
+                "updated_at=? WHERE id=?",
                 (*values, now, recipe_id),
             )
             return recipe_id
         rid = conn.execute(
             "INSERT INTO recipes(name, prompt, provider_id, mode, constraints_json, schedule_cron, enabled, "
-            "avoid_repeats, playlist_title, plex_playlist_key, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-            (*values, data.get("plex_playlist_key"), now, now),
+            "avoid_repeats, playlist_title, cover_mode, cover_prompt, cover_provider_id, plex_playlist_key, "
+            "cover_id, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (*values, data.get("plex_playlist_key"), data.get("cover_id"), now, now),
         ).lastrowid
         if data.get("plex_playlist_key"):
             conn.execute("UPDATE managed_playlists SET recipe_id = ? WHERE plex_playlist_key = ?",
@@ -113,6 +119,28 @@ def _previous_keys(conn: sqlite3.Connection, generation_id: int | None) -> list[
     return [r[0] for r in conn.execute(
         "SELECT dt.plex_key FROM draft_tracks dt JOIN drafts d ON d.id = dt.draft_id WHERE d.generation_id = ? "
         "ORDER BY dt.position", (generation_id,))]
+
+
+def _apply_cover(conn: sqlite3.Connection, r: dict, draft_id: int, draft, inject: dict | None) -> str | None:
+    """Give the new draft the recipe's cover. 'renew' makes a fresh AI cover first; if that fails
+    the previous cover is kept and the error is returned (the run itself still succeeds)."""
+    from .covers import default_prompt, generate_safely, set_cover
+
+    if r["cover_mode"] == "none":
+        return None
+    error = None
+    if r["cover_mode"] == "renew":
+        prompt = r["cover_prompt"] or default_prompt(draft["title"] if draft else r["name"],
+                                                      draft["description"] if draft else None, r["prompt"])
+        cid, error = generate_safely(conn, prompt=prompt, provider_id=r["cover_provider_id"],
+                                     recipe_id=r["id"], draft_id=draft_id,
+                                     inject=(inject or {}).get("cover_inject"))
+        if cid:
+            set_cover(conn, cid, recipe_id=r["id"])
+            r["cover_id"] = cid
+    if r["cover_id"]:
+        set_cover(conn, r["cover_id"], draft_id=draft_id)
+    return f"New cover failed, kept the previous one: {error}" if error else None
 
 
 def run_recipe(recipe_id: int, trigger: str = "manual", *, inject: dict | None = None) -> dict[str, Any]:
@@ -140,8 +168,9 @@ def run_recipe(recipe_id: int, trigger: str = "manual", *, inject: dict | None =
             c: Constraints = r["constraints"]
             if r["avoid_repeats"]:
                 c.exclude_keys = _previous_keys(conn, r["last_generation_id"])
+            gen_inject = {k: v for k, v in (inject or {}).items() if k != "cover_inject"} or None
             gen_id = manager.start(conn, r["prompt"], provider_id=r["provider_id"], constraints=c, mode=r["mode"],
-                                   background=False, recipe_id=recipe_id, inject=inject)
+                                   background=False, recipe_id=recipe_id, inject=gen_inject)
             conn.execute("UPDATE recipes SET last_generation_id = ? WHERE id = ?", (gen_id, recipe_id))
             conn.commit()
             g = get_generation(conn, gen_id)
@@ -150,7 +179,10 @@ def run_recipe(recipe_id: int, trigger: str = "manual", *, inject: dict | None =
                 raise ProviderError(g["error"] or f"generation {g['status']}")
             managed = r["plex_playlist_key"] and conn.execute(
                 "SELECT 1 FROM managed_playlists WHERE plex_playlist_key = ?", (r["plex_playlist_key"],)).fetchone()
-            draft = conn.execute("SELECT description FROM drafts WHERE id = ?", (g["draft_id"],)).fetchone()
+            draft = conn.execute("SELECT title, description FROM drafts WHERE id = ?", (g["draft_id"],)).fetchone()
+            cover_note = _apply_cover(conn, r, g["draft_id"], draft, inject)
+            if cover_note:
+                result["cover_error"] = cover_note
             push = push_draft(conn, g["draft_id"], title=r["playlist_title"] or r["name"],
                               summary=draft["description"] if draft else None,
                               replace_key=r["plex_playlist_key"] if managed else None)
@@ -158,7 +190,10 @@ def run_recipe(recipe_id: int, trigger: str = "manual", *, inject: dict | None =
                 conn.execute("UPDATE recipes SET plex_playlist_key = ? WHERE id = ?", (push["ratingKey"], recipe_id))
                 conn.execute("UPDATE managed_playlists SET recipe_id = ? WHERE plex_playlist_key = ?",
                              (recipe_id, push["ratingKey"]))
-            result.update(action=push["action"], tracks=push["track_count"], playlist=push["title"])
+            result.update(action=push["action"], tracks=push["track_count"], playlist=push["title"],
+                          cover=push.get("cover"))
+            if push.get("cover_error"):
+                result["cover_error"] = f"Cover upload to Plex failed: {push['cover_error']}"
         except (ProviderError, PlexError, ValueError) as e:
             status, error = "error", str(e)
         except Exception as e:  # never kill the scheduler thread
@@ -166,7 +201,8 @@ def run_recipe(recipe_id: int, trigger: str = "manual", *, inject: dict | None =
             log.exception("recipe.failed", recipe_id=recipe_id)
 
         with conn:
-            conn.execute("UPDATE recipes SET last_status=?, last_error=? WHERE id=?", (status, error, recipe_id))
+            conn.execute("UPDATE recipes SET last_status=?, last_error=? WHERE id=?",
+                         (status, error or result.get("cover_error"), recipe_id))
             conn.execute("UPDATE jobs SET finished_at=?, status=?, stats_json=?, error=? WHERE id=?",
                          (_now(), status, json.dumps({r["name"]: result}), error, job_id))
         log.info("recipe.finish", recipe_id=recipe_id, status=status, error=error, **result)
