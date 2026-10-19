@@ -168,3 +168,48 @@ def test_widget_upload_select_download(client, lib):
     client.post("/covers/select", data={"draft_id": str(did), "cover_id": "none"})
     assert lib.execute("SELECT cover_id FROM drafts WHERE id = ?", (did,)).fetchone()[0] is None
     assert client.get("/covers/99999.jpg").status_code == 404
+
+
+def test_generate_can_make_a_cover_in_the_same_run(lib):
+    img = FakeImageModel()
+    script = ScriptedProvider([tools(call("add_to_draft", plex_keys=["100", "101"])),
+                               tools(call("finish", title="Shoegaze Dusk", reasoning="hazy guitars"))])
+    gid = GenerationManager().start(lib, "dreamy shoegaze", background=False, constraints=Constraints(target_minutes=7),
+                                    cover={"prompt": None, "provider_id": 2},
+                                    inject={"provider": script, "cover_inject": {"provider": img}})
+    g = get_generation(lib, gid)
+    assert g["status"] == "ok"
+    cover_id = lib.execute("SELECT cover_id FROM drafts WHERE id = ?", (g["draft_id"],)).fetchone()[0]
+    assert svc.get_cover(lib, cover_id)["kind"] == "ai_image"
+    assert 'titled "Shoegaze Dusk"' in img.prompts[0] and "hazy guitars" in img.prompts[0]
+    assert [e["msg"] for e in g["trace"] if e["kind"] == "draft"][-1] == "cover ready"
+
+
+def test_cover_failure_never_fails_the_playlist(lib):
+    class Broken:
+        def generate_image(self, prompt, size="1024x1024"):
+            raise ProviderError("OpenAI rate limit hit - try again shortly")
+
+    script = ScriptedProvider([tools(call("add_to_draft", plex_keys=["100", "101"])),
+                               tools(call("finish", title="t", reasoning="r"))])
+    gid = GenerationManager().start(lib, "x", background=False, constraints=Constraints(target_minutes=7),
+                                    cover={"prompt": "neon city", "provider_id": 2},
+                                    inject={"provider": script, "cover_inject": {"provider": Broken()}})
+    g = get_generation(lib, gid)
+    d = lib.execute("SELECT cover_id, adjustments_json FROM drafts WHERE id = ?", (g["draft_id"],)).fetchone()
+    assert g["status"] == "ok" and d["cover_id"] is None
+    assert "Cover wasn't generated: OpenAI rate limit hit" in d["adjustments_json"]
+
+
+def test_generate_form_passes_cover_options(client, lib, monkeypatch):
+    from setlistarr.generation import runner
+
+    started = {}
+    monkeypatch.setattr(runner.manager, "start", lambda conn, prompt, **kw: started.update(kw) or 1)
+    page = client.get("/generate").text
+    assert "Cover (optional)" in page and "Also generate a cover" in page and "(artwork)" in page
+    client.post("/generate", data={"prompt": "x", "cover_enabled": "on", "cover_prompt": " vinyl sunset ",
+                                   "cover_provider_id": "2"}, follow_redirects=False)
+    assert started["cover"] == {"prompt": "vinyl sunset", "provider_id": 2}
+    client.post("/generate", data={"prompt": "x"}, follow_redirects=False)
+    assert started["cover"] is None

@@ -11,6 +11,7 @@ from ...generation.constraints import Constraints
 from ...generation.runner import manager
 from ...llm.base import ProviderError
 from ...llm.registry import cost_hint, text_providers
+from ...services.covers import cover_providers, default_cover_provider
 from ...services.generations import get_generation, load_draft, recent_generations
 from ..deps import get_conn, templates
 
@@ -26,6 +27,8 @@ def _page(request, conn, *, error=None, form=None, status_code=200):
         "generate.html",
         {
             "providers": providers,
+            "cover_providers": cover_providers(conn),
+            "default_cover_provider": (d.id if (d := default_cover_provider(conn)) else None),
             "hints": {p.id: cost_hint(conn, p) for p in providers},
             "recent": recent_generations(conn, 15),
             "library_tracks": conn.execute("SELECT COALESCE(SUM(track_count), 0) FROM libraries WHERE enabled = 1").fetchone()[0],
@@ -52,9 +55,14 @@ async def start_generation(request: Request, conn: sqlite3.Connection = Depends(
     )
     provider_id = int(form["provider_id"]) if str(form.get("provider_id", "")).isdigit() else None
     mode = form.get("mode") or None
+    cover = None
+    if form.get("cover_enabled"):
+        cp = str(form.get("cover_provider_id") or "")
+        cover = {"prompt": str(form.get("cover_prompt") or "").strip() or None,
+                 "provider_id": int(cp) if cp.isdigit() else None}
     try:
         gen_id = manager.start(conn, str(form.get("prompt", "")), provider_id=provider_id,
-                               constraints=constraints, mode=mode)
+                               constraints=constraints, mode=mode, cover=cover)
     except (ProviderError, ValueError) as e:
         return _page(request, conn, error=str(e), form=form, status_code=400)
     return RedirectResponse(f"/generate/{gen_id}", status_code=303)

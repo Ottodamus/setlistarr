@@ -38,6 +38,21 @@
       <label class="small dim">Exclude tags (comma-separated)<br><input type="text" name="exclude_tags" value="{{ form.exclude_tags or '' }}" style="width:100%"></label>
     </div>
   </details>
+  <details style="margin-top:10px" {{ 'open' if form.cover_enabled }}>
+    <summary class="dim">Cover (optional) - make a playlist cover in the same run</summary>
+    <div style="display:grid;gap:8px;margin-top:10px;max-width:720px">
+      <label><input type="checkbox" name="cover_enabled" {{ 'checked' if form.cover_enabled }}> Also generate a cover</label>
+      <textarea name="cover_prompt" rows="2" placeholder="Cover prompt - leave empty to describe the new playlist automatically">{{ form.cover_prompt or '' }}</textarea>
+      <select name="cover_provider_id" aria-label="Cover provider">
+        {% for p in cover_providers %}
+        <option value="{{ p.id }}" {{ 'selected' if (form.cover_provider_id|string == p.id|string) or (not form.cover_provider_id and p.id == default_cover_provider) }}>{{ p.label }} ({{ 'artwork' if p.method == 'image' else 'designed art' }})</option>
+        {% endfor %}
+      </select>
+      <div class="small dim">Runs after the playlist is ready and shows in the progress log. Image models make artwork
+        (a few cents); text models draw vector art. You can change or replace the cover on the draft afterwards,
+        and a failed cover never stops the playlist.</div>
+    </div>
+  </details>
 </form>
 
 <div class="card">

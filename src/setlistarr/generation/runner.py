@@ -78,9 +78,12 @@ class GenerationManager:
         recipe_id: int | None = None,
         seed_keys: list[str] | None = None,
         parent_draft_id: int | None = None,
+        cover: dict[str, Any] | None = None,
         inject: dict[str, Any] | None = None,
     ) -> int:
-        """seed_keys: user-kept tracks a regeneration must build around."""
+        """seed_keys: user-kept tracks a regeneration must build around.
+        cover: {"prompt": str | None, "provider_id": int | None} to also make a cover once the
+        draft is saved (an empty prompt describes the new playlist automatically)."""
         prompt = prompt.strip()
         if not prompt:
             raise ValueError("prompt is empty")
@@ -101,7 +104,8 @@ class GenerationManager:
         events, cancel = EventLog(), threading.Event()
         with self._lock:
             self._logs[gen_id], self._cancel[gen_id] = events, cancel
-        args = (gen_id, prompt, cfg, constraints, mode, events, cancel, inject or {}, [str(k) for k in seed_keys or []])
+        args = (gen_id, prompt, cfg, constraints, mode, events, cancel, inject or {},
+                [str(k) for k in seed_keys or []], cover)
         if background:
             threading.Thread(target=self._run, args=args, name=f"gen-{gen_id}", daemon=True).start()
         else:
@@ -119,7 +123,7 @@ class GenerationManager:
 
     # ------------------------------------------------------------------ #
     def _run(self, gen_id, prompt, cfg: ProviderConfig, constraints: Constraints, mode, events: EventLog,
-             cancel: threading.Event, inject, seed: list[str]) -> None:
+             cancel: threading.Event, inject, seed: list[str], cover: dict | None = None) -> None:
         conn = connect(bootstrap().db_path)
         t0 = time.monotonic()
         meter = Meter(conn, cfg)
@@ -136,6 +140,9 @@ class GenerationManager:
                 result = self._run_mode(gx, prompt, constraints, mode, seed)
                 gx.check_cancel()
                 draft_id = self._save(conn, gen_id, prompt, constraints, result, seed)
+                if cover is not None:
+                    gx.check_cancel()
+                    self._make_cover(conn, draft_id, prompt, cover, events, inject)
             finally:
                 self._slots.release()
         except Cancelled:
@@ -172,6 +179,26 @@ class GenerationManager:
         reaper = threading.Timer(300, lambda: self._logs.pop(gen_id, None))
         reaper.daemon = True
         reaper.start()
+
+    @staticmethod
+    def _make_cover(conn, draft_id: int, request: str, cover: dict, events: EventLog, inject: dict) -> None:
+        """Best effort: a failed cover is reported on the draft, never fails the generation."""
+        from ..services.covers import default_prompt, generate_safely, set_cover
+
+        events.emit("stage", "making the cover")
+        d = conn.execute("SELECT title, description FROM drafts WHERE id = ?", (draft_id,)).fetchone()
+        prompt = (cover.get("prompt") or "").strip() or default_prompt(d["title"], d["description"], request)
+        cid, err = generate_safely(conn, prompt=prompt, provider_id=cover.get("provider_id"), draft_id=draft_id,
+                                   inject=inject.get("cover_inject"))
+        if cid:
+            set_cover(conn, cid, draft_id=draft_id)
+            events.emit("draft", "cover ready")
+            return
+        events.emit("warn", f"cover failed: {err}")
+        row = conn.execute("SELECT adjustments_json FROM drafts WHERE id = ?", (draft_id,)).fetchone()
+        notes = json.loads(row["adjustments_json"] or "[]") + [f"Cover wasn't generated: {err}"]
+        with conn:
+            conn.execute("UPDATE drafts SET adjustments_json = ? WHERE id = ?", (json.dumps(notes), draft_id))
 
     @staticmethod
     def _run_mode(gx: GenContext, prompt: str, c: Constraints, mode: str, seed: list[str]) -> ModeResult:

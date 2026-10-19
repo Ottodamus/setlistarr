@@ -44,6 +44,7 @@ Then open `http://<host>:8787`:
    OpenAI image model (add an OpenAI-compatible provider whose model is e.g.
    `gpt-image-2.5-flare`) or, with Claude/ChatGPT/Ollama, as vector art the model draws. Every cover
    is downloadable; recipes can keep one cover or make a new one on every refresh.
+   Tick *Cover (optional)* on the Generate form to have the cover made in the same run.
 9. **Themes**: Settings → Appearance - Dark (default), Light, Midnight or Synthwave.
 10. **Recipes**: save a prompt (or "Save as recipe" from a draft) with a schedule - daily, weekly,
    or any cron. Each run regenerates and replaces the recipe's playlist in place; "avoid repeats"
