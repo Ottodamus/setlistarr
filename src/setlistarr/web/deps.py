@@ -11,7 +11,7 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from .. import __version__
-from ..config import bootstrap
+from ..config import Settings, bootstrap
 from ..core.db import connect
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -77,5 +77,17 @@ def _num(n) -> str:
     return f"{int(n or 0):,}"
 
 
+def ui_theme() -> str:
+    """The configured theme, rendered server-side into <html data-theme> (no flash on load)."""
+    try:
+        conn = connect(bootstrap().db_path)
+        try:
+            return Settings(conn).get("ui_theme")
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return "dark"
+
+
 templates.env.filters.update(duration=_duration, hours=_hours, stars=_stars, ago=_ago, num=_num)
-templates.env.globals.update(version=__version__)
+templates.env.globals.update(version=__version__, ui_theme=ui_theme)

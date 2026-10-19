@@ -12,7 +12,13 @@
     <div class="form-row">
       <label for="{{ f.key }}">{{ f.label }}</label>
       <div>
-        {% if f.kind == 'bool' %}
+        {% if f.choices %}
+          <select id="{{ f.key }}" name="{{ f.key }}"
+                  {% if f.key == 'ui_theme' %}onchange="document.documentElement.dataset.theme = this.value"{% endif %}>
+            {% for v, label in f.choices %}<option value="{{ v }}" {{ 'selected' if f.value == v }}>{{ label }}</option>{% endfor %}
+          </select>
+          {% if f.key == 'ui_theme' %}<span class="dim small">previews instantly - Save settings to keep it</span>{% endif %}
+        {% elif f.kind == 'bool' %}
           <input type="checkbox" id="{{ f.key }}" name="{{ f.key }}" {{ 'checked' if f.value }} {{ 'disabled' if f.source == 'env' }}>
         {% elif f.secret %}
           <input type="password" id="{{ f.key }}" name="{{ f.key }}" autocomplete="off"

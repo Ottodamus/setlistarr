@@ -85,11 +85,14 @@ class SettingDef:
     env: str | None = None
     secret: bool = False
     help: str = ""
+    choices: tuple[tuple[str, str], ...] = ()  # (value, label); anything else falls back to default
 
 
 SETTING_DEFS: dict[str, SettingDef] = {
     d.key: d
     for d in [
+        SettingDef("ui_theme", "Theme", str, "dark",
+                   choices=(("dark", "Dark"), ("light", "Light"), ("midnight", "Midnight"), ("synthwave", "Synthwave"))),
         SettingDef("plex_url", "Plex server URL", env="PLEX_URL",
                    help="e.g. http://192.168.1.10:32400 - the server itself, not app.plex.tv"),
         SettingDef("plex_token", "Plex token", env="PLEX_TOKEN", secret=True),
@@ -113,6 +116,8 @@ SETTING_DEFS: dict[str, SettingDef] = {
 
 def _coerce(defn: SettingDef, raw: str | None) -> Any:
     if raw is None or raw == "":
+        return defn.default
+    if defn.choices and raw not in {v for v, _ in defn.choices}:
         return defn.default
     if defn.kind is bool:
         return raw.strip().lower() in {"1", "true", "yes", "on"}

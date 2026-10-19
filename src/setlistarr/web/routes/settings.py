@@ -12,6 +12,7 @@ from ..deps import get_conn, templates
 
 router = APIRouter()
 
+APPEARANCE_KEYS = ["ui_theme"]
 PLEX_KEYS = ["plex_url", "plex_token", "plex_timeout_sec"]
 SYNC_KEYS = ["sync_interval_minutes", "full_sync_cron"]
 ENRICH_KEYS = ["lastfm_api_key", "musicbrainz_contact", "enrich_after_full_sync", "enrich_track_tags"]
@@ -32,6 +33,7 @@ def _fields(s: Settings, keys: list[str]) -> list[dict]:
                 "secret": d.secret,
                 "value": "" if d.secret else ("" if val is None else val),
                 "is_set": val not in (None, ""),
+                "choices": d.choices,
                 "source": s.source(k),
                 "env": d.env,
             }
@@ -51,6 +53,7 @@ def settings_page(request: Request, saved: int = 0, conn: sqlite3.Connection = D
         "settings.html",
         {
             "groups": [
+                ("Appearance", _fields(s, APPEARANCE_KEYS)),
                 ("Plex", _fields(s, PLEX_KEYS)),
                 ("Sync schedule", _fields(s, SYNC_KEYS)),
                 ("Enrichment", _fields(s, ENRICH_KEYS)),
@@ -66,7 +69,7 @@ def settings_page(request: Request, saved: int = 0, conn: sqlite3.Connection = D
 async def save_settings(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
     form = await request.form()
     s = Settings(conn)
-    for key in PLEX_KEYS + SYNC_KEYS + ENRICH_KEYS + GENERATION_KEYS:
+    for key in APPEARANCE_KEYS + PLEX_KEYS + SYNC_KEYS + ENRICH_KEYS + GENERATION_KEYS:
         d = SETTING_DEFS[key]
         if s.source(key) == "env":
             continue

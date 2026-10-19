@@ -96,3 +96,29 @@ def test_icons_are_linked_and_served(client):
     assert 'href="/static/icons/favicon.ico"' in page and 'src="/static/icons/logo.png"' in page
     for path in ("favicon.ico", "icon-32.png", "logo.png", "apple-touch-icon.png", "icon-192.png", "site.webmanifest"):
         assert client.get(f"/static/icons/{path}").status_code == 200, path
+
+
+def test_themes_default_dark_and_persist(client, conn):
+    from setlistarr.config import Settings
+
+    assert '<html lang="en" data-theme="dark">' in client.get("/library").text
+    page = client.get("/settings").text
+    for v in ("dark", "light", "midnight", "synthwave"):
+        assert f'<option value="{v}"' in page
+    client.post("/settings", data={"ui_theme": "synthwave", "sync_interval_minutes": "60"})
+    assert 'data-theme="synthwave"' in client.get("/stats").text
+    assert 'data-theme="synthwave"' in client.get("/login").text  # auth pages follow the theme too
+    Settings(conn).set("ui_theme", "not-a-theme")
+    assert 'data-theme="dark"' in client.get("/library").text
+
+
+def test_every_theme_defines_every_token():
+    import re
+    from pathlib import Path
+
+    css = (Path(__file__).parents[1] / "src/setlistarr/web/static/app.css").read_text()
+    root = re.search(r":root \{(.*?)\}", css, re.S).group(1)
+    tokens = {t for t in re.findall(r"(--[\w-]+):", root) if t not in ("--radius", "--mono")}
+    for theme in ("light", "midnight", "synthwave"):
+        block = re.search(rf'html\[data-theme="{theme}"\] \{{(.*?)\}}', css, re.S).group(1)
+        assert tokens <= set(re.findall(r"(--[\w-]+):", block)), theme

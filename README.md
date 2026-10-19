@@ -39,7 +39,8 @@ Then open `http://<host>:8787`:
    and *Regenerate* around them (optionally with a tweaked prompt).
 7. **Push**: create a new Plex playlist, or replace one Setlistarr made before - in place, so
    it keeps its identity in Plexamp. Playlists you made yourself are never touched.
-8. **Recipes**: save a prompt (or "Save as recipe" from a draft) with a schedule - daily, weekly,
+8. **Themes**: Settings → Appearance - Dark (default), Light, Midnight or Synthwave.
+9. **Recipes**: save a prompt (or "Save as recipe" from a draft) with a schedule - daily, weekly,
    or any cron. Each run regenerates and replaces the recipe's playlist in place; "avoid repeats"
    keeps the previous refresh's tracks out. A failed run leaves the playlist as it was.
 

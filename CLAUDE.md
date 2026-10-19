@@ -98,5 +98,7 @@ git-ignored - never in this file.
   structlog `log.info("area.event", key=value)` event names.
 - UI: server-rendered Jinja; HTMX for partial updates (`is_htmx(request)` -> return a partial).
   Vendored JS in `web/static/vendor/` (htmx 2.0.4, htmx-ext-sse 2.2.2, SortableJS 1.15.6) - no CDN, no Node.
-- Colors are CSS custom properties in `web/static/app.css`; dark only.
+- Colors are CSS custom properties in `web/static/app.css` - never hard-code a color. Themes (dark default,
+  light, midnight, synthwave) override the tokens via `<html data-theme>`, rendered server-side from the
+  `ui_theme` setting. A new theme must define every token (a test checks) and pass WCAG AA contrast.
 - Errors shown to the user are `PlexError` / `ProviderError` messages, never tracebacks.

@@ -1,4 +1,7 @@
-/* Setlistarr - arr-style dark theme. No build step; edit directly. */
+/* Setlistarr - arr-style UI. No build step; edit directly.
+   Themes: every color is a token below. Dark is the default (:root); the others override it via
+   <html data-theme="...">. Palettes are checked for WCAG AA contrast (text 4.5:1+) on every
+   background they're used on - keep it that way when adding one. */
 :root {
   --bg: #1c1d21;
   --bg-elev: #25262b;
@@ -9,11 +12,64 @@
   --text-dim: #9a9ca5;
   --accent: #e5a00d;          /* Plex amber */
   --accent-dim: #a87507;
+  --on-accent: #111111;       /* text on accent-filled buttons */
   --ok: #4caf50;
   --warn: #f0ad4e;
-  --error: #e05252;
+  --error: #f06a6a;
+  --info: #6fa8dc;
   --radius: 6px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  --bg: #f4f5f7;
+  --bg-elev: #ffffff;
+  --bg-elev-2: #eceef2;
+  --bg-sidebar: #e8eaef;
+  --border: #d3d7de;
+  --text: #1d2026;
+  --text-dim: #585e6b;
+  --accent: #8c5600;
+  --accent-dim: #714500;
+  --on-accent: #ffffff;
+  --ok: #2e7d32;
+  --warn: #9a5800;
+  --error: #c62828;
+  --info: #1c64a3;
+  color-scheme: light;
+}
+html[data-theme="midnight"] {    /* navy + the record label's orange */
+  --bg: #131a2e;
+  --bg-elev: #1b2340;
+  --bg-elev-2: #242e52;
+  --bg-sidebar: #0f1427;
+  --border: #2f3a63;
+  --text: #e6e9f5;
+  --text-dim: #a3abcb;
+  --accent: #ff8a3d;
+  --accent-dim: #e8722a;
+  --on-accent: #1a1005;
+  --ok: #4cc38a;
+  --warn: #f5b14c;
+  --error: #ff7676;
+  --info: #7cb7ff;
+  color-scheme: dark;
+}
+html[data-theme="synthwave"] {   /* deep purple, hot pink, cyan */
+  --bg: #1a1029;
+  --bg-elev: #24163a;
+  --bg-elev-2: #2f1d4a;
+  --bg-sidebar: #140c21;
+  --border: #45306a;
+  --text: #f3ecff;
+  --text-dim: #bcaed6;
+  --accent: #ff5cad;
+  --accent-dim: #f03d95;
+  --on-accent: #1c0414;
+  --ok: #4be3a0;
+  --warn: #ffc24b;
+  --error: #ff7a8f;
+  --info: #3fe0ff;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -85,7 +141,7 @@ input:disabled { opacity: .6; }
   border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 14px; font: inherit; cursor: pointer;
 }
 .btn:hover { border-color: var(--accent); text-decoration: none; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .btn.primary:hover { background: var(--accent-dim); }
 .btn:disabled { opacity: .5; cursor: default; }
 
@@ -134,7 +190,7 @@ input:disabled { opacity: .6; }
 .gen-log { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow-y: auto; font-size: 12.5px; }
 .gen-log .ev { padding: 4px 0; border-bottom: 1px solid var(--border); word-break: break-word; }
 .gen-log .ev-kind { display: inline-block; min-width: 74px; color: var(--text-dim); text-transform: uppercase; font-size: 10.5px; letter-spacing: .5px; }
-.gen-log .ev-tool .ev-kind { color: #6fa8dc; }
+.gen-log .ev-tool .ev-kind { color: var(--info); }
 .gen-log .ev-draft .ev-kind { color: var(--accent); }
 .gen-log .ev-warn .ev-kind, .gen-log .ev-warn { color: var(--warn); }
 .gen-log .ev-error, .gen-log .ev-error .ev-kind { color: var(--error); }
