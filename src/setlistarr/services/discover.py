@@ -324,29 +324,60 @@ def _taste_tags(conn, n: int = 12) -> list[str]:
             GROUP BY tt.tag ORDER BY w DESC LIMIT ?""", (n,))]
 
 
+_BY_ARTIST_SQL = "(LOWER(t.artist_name) = LOWER(?) OR LOWER(COALESCE(t.track_artist, '')) = LOWER(?))"
+
+
+def artist_tracks(conn: sqlite3.Connection, d) -> list[dict]:
+    """The arrived artist's live tracks, the album sent to Lidarr first."""
+    return [dict(r) for r in conn.execute(
+        f"""SELECT t.plex_key, t.title, t.album_title, t.year, t.duration_ms, t.play_count,
+                   COALESCE(t.track_artist, t.artist_name) AS artist FROM tracks t
+            WHERE {LIVE_TRACK_SQL} AND {_BY_ARTIST_SQL}
+            ORDER BY (LOWER(t.album_title) = LOWER(COALESCE(?, ''))) DESC, t.year DESC NULLS LAST,
+                     t.album_title, t.disc_num, t.track_num""",
+        (d["artist_name"], d["artist_name"], d["album_title"]))]
+
+
+def _auto_tracks(conn: sqlite3.Connection, d) -> list[dict]:
+    return [dict(r) for r in conn.execute(
+        f"""SELECT t.plex_key, t.duration_ms, COALESCE(t.track_artist, t.artist_name) AS artist FROM tracks t
+            WHERE {LIVE_TRACK_SQL} AND {_BY_ARTIST_SQL}
+            ORDER BY (LOWER(t.album_title) = LOWER(COALESCE(?, ''))) DESC, t.user_rating DESC NULLS LAST,
+                     t.disc_num, t.track_num LIMIT 3""",
+        (d["artist_name"], d["artist_name"], d["album_title"]))]
+
+
+def _picked_tracks(conn: sqlite3.Connection, discovery_id: int) -> list[dict]:
+    return [dict(r) for r in conn.execute(
+        f"""SELECT t.plex_key, t.duration_ms, COALESCE(t.track_artist, t.artist_name) AS artist
+            FROM discover_picks p JOIN tracks t ON t.plex_key = p.plex_key
+            WHERE p.discovery_id = ? AND {LIVE_TRACK_SQL} ORDER BY p.position""", (discovery_id,))]
+
+
 def compose_playlist(conn: sqlite3.Connection, *, rng: random.Random | None = None) -> dict[str, Any]:
-    """Arrivals from the last N weeks (up to 3 tracks per artist, the album sent to Lidarr first),
-    topped up with never-played library tracks that match your most-played tags."""
+    """Arrivals from the last N weeks (your picked songs, or up to 3 tracks per artist with the album
+    sent to Lidarr first), topped up with never-played library tracks that match your most-played tags."""
     rng = rng or random.Random()
     s = Settings(conn)
     target_ms = int(s.get("discover_minutes")) * 60_000
     since = (datetime.now(timezone.utc) - timedelta(weeks=int(s.get("discover_window_weeks")))).isoformat()
-    arrived = conn.execute("SELECT * FROM discoveries WHERE status = 'arrived' AND arrived_at >= ? "
-                           "ORDER BY arrived_at DESC", (since,)).fetchall()
+    arrived = conn.execute("SELECT * FROM discoveries WHERE status = 'arrived' AND (arrived_at >= ? OR picked_at >= ?) "
+                           "ORDER BY arrived_at DESC", (since, since)).fetchall()
     new_tracks: list[dict] = []
     for d in arrived:
-        rows = conn.execute(
-            f"""SELECT t.plex_key, t.duration_ms, COALESCE(t.track_artist, t.artist_name) AS artist FROM tracks t
-                WHERE {LIVE_TRACK_SQL} AND (LOWER(t.artist_name) = LOWER(?) OR LOWER(COALESCE(t.track_artist,'')) = LOWER(?))
-                ORDER BY (LOWER(t.album_title) = LOWER(COALESCE(?, ''))) DESC, t.user_rating DESC NULLS LAST,
-                         t.disc_num, t.track_num LIMIT 3""",
-            (d["artist_name"], d["artist_name"], d["album_title"])).fetchall()
-        new_tracks += [dict(r, new=True) for r in rows]
+        if d["picked_at"]:
+            new_tracks += [dict(r, new=True, pinned=True) for r in _picked_tracks(conn, d["id"])]
+        else:
+            new_tracks += [dict(r, new=True) for r in _auto_tracks(conn, d)]
     picked = list(new_tracks)
     total = sum(t["duration_ms"] or 0 for t in picked)
     if total > target_ms * 0.75:  # leave room for the top-up only if arrivals are light
-        while picked and total > target_ms:
-            total -= picked.pop()["duration_ms"] or 0
+        for t in reversed(list(picked)):  # trim automatic picks only - songs you picked always stay
+            if total <= target_ms:
+                break
+            if not t.get("pinned"):
+                picked.remove(t)
+                total -= t["duration_ms"] or 0
     tags = _taste_tags(conn)
     if tags and total < target_ms:
         have = {t["plex_key"] for t in picked}
@@ -432,6 +463,71 @@ def build_playlist(conn: sqlite3.Connection, *, plex=None, cover_inject: dict | 
     set_meta(conn, "discover_draft_id", str(draft_id))
     return {"status": "ok", "action": res["action"], "tracks": res["track_count"], "new_tracks": comp["new_count"],
             "title": title, "draft_id": draft_id, "cover_note": cover_note or res.get("cover_error")}
+
+
+def _spread_in(base: list[str], add: list[str]) -> list[str]:
+    """Insert `add` evenly through `base` (ascending final positions, so earlier inserts don't shift later ones)."""
+    out, n = list(base), len(base) + len(add)
+    for i, k in enumerate(add):
+        out.insert(min(len(out), int((i + 0.5) * n / len(add))), k)
+    return out
+
+
+def set_picks(conn: sqlite3.Connection, discovery_id: int, keys: list[str] | None, *, plex=None) -> dict[str, Any]:
+    """Choose which of an arrived artist's songs are in the Discover playlist (keys=None = back to the
+    automatic 3), then update the playlist in place right away: this artist's other songs come out, the
+    picked ones go in spread through it, and everything else (and the cover) stays as it is."""
+    d = conn.execute("SELECT * FROM discoveries WHERE id = ?", (discovery_id,)).fetchone()
+    if not d or d["status"] != "arrived":
+        raise DiscoverError("Only artists that have arrived in Plex can be added to the playlist")
+    mine = {t["plex_key"] for t in artist_tracks(conn, d)}
+    with conn:
+        conn.execute("DELETE FROM discover_picks WHERE discovery_id = ?", (discovery_id,))
+        if keys is None:
+            conn.execute("UPDATE discoveries SET picked_at = NULL, updated_at = ? WHERE id = ?", (_now(), discovery_id))
+            chosen = [t["plex_key"] for t in _auto_tracks(conn, d)]
+        else:
+            chosen = list(dict.fromkeys(k for k in keys if k in mine))  # only this artist's live tracks
+            conn.executemany("INSERT INTO discover_picks(discovery_id, plex_key, position) VALUES(?,?,?)",
+                             [(discovery_id, k, i) for i, k in enumerate(chosen)])
+            conn.execute("UPDATE discoveries SET picked_at = ?, updated_at = ? WHERE id = ?", (_now(), _now(), discovery_id))
+
+    did, key = get_meta(conn, "discover_draft_id"), get_meta(conn, "discover_playlist_key")
+    managed = key and conn.execute("SELECT 1 FROM managed_playlists WHERE plex_playlist_key = ?", (key,)).fetchone()
+    old = conn.execute("SELECT * FROM drafts WHERE id = ?", (int(did),)).fetchone() if did else None
+    if not (managed and old):  # no Discover playlist yet: build the whole thing (includes the picks)
+        return {**build_playlist(conn, plex=plex), "songs": len(chosen)}
+    cur = conn.execute("SELECT plex_key, source FROM draft_tracks WHERE draft_id = ? ORDER BY position", (old["id"],)).fetchall()
+    kept = [r["plex_key"] for r in cur if r["plex_key"] not in mine or r["plex_key"] in chosen]
+    new = _spread_in(kept, [k for k in chosen if k not in kept])
+    if new == [r["plex_key"] for r in cur]:
+        return {"status": "ok", "action": "unchanged", "songs": len(chosen), "title": old["title"]}
+    if not new:
+        return {**build_playlist(conn, plex=plex), "songs": 0}
+    source = {r["plex_key"]: r["source"] for r in cur}
+    now = _now()
+    with conn:
+        draft_id = conn.execute(
+            "INSERT INTO drafts(generation_id, title, description, adjustments_json, cover_id, created_at, updated_at) "
+            "VALUES(NULL, ?, ?, ?, ?, ?, ?)",
+            (old["title"], old["description"], json.dumps([]), old["cover_id"], now, now)).lastrowid
+        conn.executemany("INSERT INTO draft_tracks(draft_id, position, plex_key, source) VALUES(?,?,?,?)",
+                         [(draft_id, i, k, "discover" if k in mine else source.get(k, "library"))
+                          for i, k in enumerate(new)])
+    from .push import push_draft
+    try:
+        res = push_draft(conn, draft_id, title=old["title"], summary=old["description"], replace_key=key, plex=plex)
+    except PlexError as e:
+        return {"status": "error", "error": str(e), "draft_id": draft_id}
+    set_meta(conn, "discover_playlist_key", res["ratingKey"])
+    set_meta(conn, "discover_draft_id", str(draft_id))
+    return {"status": "ok", "action": res["action"], "songs": len(chosen), "tracks": res["track_count"],
+            "title": old["title"], "draft_id": draft_id}
+
+
+def playlist_keys(conn: sqlite3.Connection) -> set[str]:
+    did = get_meta(conn, "discover_draft_id")
+    return {r[0] for r in conn.execute("SELECT plex_key FROM draft_tracks WHERE draft_id = ?", (int(did),))} if did else set()
 
 
 def remember_draft_cover(conn: sqlite3.Connection) -> None:

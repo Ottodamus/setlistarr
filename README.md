@@ -245,6 +245,11 @@ weeks (the album Lidarr fetched first), **topped up** with never-played tracks f
 match what you play most, so it's never empty while downloads are pending. Artists are spread out so the
 same one doesn't play twice in a row. Open it from the Discover page to edit it or change its cover.
 
+**Pick songs** next to an artist under *Arrived in Plex* lets you choose which of their songs go into the
+playlist. Saving updates it in Plex straight away (the rest of the playlist and its cover stay as they are),
+and later rebuilds keep exactly your picks - never trimmed - for as long as the arrivals window (counted from
+when you picked them). **Back to automatic** returns that artist to the 3 songs Setlistarr picks itself.
+
 **Sync now** on the Discover page runs a library sync, which checks whether requested albums have
 arrived in Plex (and sends plays to ListenBrainz if that's on) without waiting for the scheduled sync.
 
@@ -338,7 +343,12 @@ broken (Docker's health check uses it). Signed-in users get DB, Plex and schedul
 | *Enrich tags* shows "skipped" | Another library job was running; start it again when it's done. |
 | Discover: "Couldn't identify this artist on MusicBrainz" | The name didn't match a MusicBrainz artist closely enough; dismiss it, or add the artist in Lidarr yourself. |
 | Discover: ListenBrainz "no recommendations yet" | Keep *Send my Plex plays* on; ListenBrainz needs a few weeks of history. Use the Last.fm source meanwhile. |
-| Discover: an artist stays in "Sent to Lidarr" | Lidarr hasn't downloaded it yet, or Plex hasn't picked it up - check Lidarr's queue, then click **Sync now** on the Discover page. Adding Plex under Lidarr → Settings → Connect makes Plex scan new downloads straight away. |
+| Discover: an artist stays in "Sent to Lidarr" | Lidarr hasn't downloaded it yet, or Plex hasn't picked it up - check Lidarr's queue, then click **Pick songs** next to an artist under *Arrived in Plex* lets you choose which of their songs go into the
+playlist. Saving updates it in Plex straight away (the rest of the playlist and its cover stay as they are),
+and later rebuilds keep exactly your picks - never trimmed - for as long as the arrivals window (counted from
+when you picked them). **Back to automatic** returns that artist to the 3 songs Setlistarr picks itself.
+
+**Sync now** on the Discover page. Adding Plex under Lidarr → Settings → Connect makes Plex scan new downloads straight away. |
 
 ---
 

@@ -192,6 +192,52 @@ def test_arrival_and_rolling_playlist_with_top_up(lib, fake_plex, plex, fs):
     assert second["action"] == "replaced" and get_meta(lib, "discover_playlist_key") == first_key
 
 
+def test_picked_songs_go_into_the_playlist_in_place_and_stay(lib, fake_plex, plex, fs):
+    did = _arrive_ride(lib, fake_plex, plex, fs)
+    svc.check_arrivals(lib)
+    Settings(lib).set("discover_minutes", 20)
+    px = lambda: PlexClient(fake_plex.url, TOKEN)  # noqa: E731
+    svc.build_playlist(lib, plex=px())
+    key = get_meta(lib, "discover_playlist_key")
+    before = fake_plex.playlists[key]["_keys"]
+    others = [k for k in before if not k.startswith("30")]
+    # keep Seagull, swap the other two automatic picks for Polar Bear
+    res = svc.set_picks(lib, did, ["300", "303", "999"], plex=px())  # 999 isn't Ride's: ignored
+    assert res["status"] == "ok" and res["action"] == "replaced" and res["songs"] == 2
+    after = fake_plex.playlists[key]["_keys"]
+    assert get_meta(lib, "discover_playlist_key") == key  # same playlist, replaced in place
+    assert {"300", "303"} <= set(after) and not {"301", "302"} & set(after)
+    assert [k for k in after if not k.startswith("30")] == others  # the rest untouched, same order
+    # a rebuild keeps exactly your picks, even when the playlist is over length
+    Settings(lib).set("discover_minutes", 1)
+    svc.build_playlist(lib, plex=px())
+    rebuilt = fake_plex.playlists[key]["_keys"]
+    assert {"300", "303"} <= set(rebuilt) and not {"301", "302"} & set(rebuilt)
+    assert svc.set_picks(lib, did, ["300", "303"], plex=px())["action"] == "unchanged"
+    # back to automatic: the first 3 of the album Lidarr fetched
+    svc.set_picks(lib, did, None, plex=px())
+    assert {"300", "301", "302"} <= set(fake_plex.playlists[key]["_keys"])
+    assert lib.execute("SELECT picked_at FROM discoveries WHERE id=?", (did,)).fetchone()[0] is None
+    with pytest.raises(svc.DiscoverError):
+        svc.set_picks(lib, lib.execute("SELECT id FROM discoveries WHERE status='suggested'").fetchone()[0], ["300"])
+
+
+def test_pick_songs_from_the_discover_page(client, lib, fake_plex, plex, fs, monkeypatch):
+    did = _arrive_ride(lib, fake_plex, plex, fs)
+    svc.check_arrivals(lib)
+    page = client.get("/discover").text
+    assert f'hx-get="/discover/{did}/songs"' in page and "Pick songs" in page
+    picker = client.get(f"/discover/{did}/songs").text
+    assert "Songs by Ride for Discover Weekly" in picker and "Polar Bear" in picker and "picks up to 3 automatically" in picker
+    real = svc.set_picks
+    monkeypatch.setattr(svc, "set_picks", lambda c, i, k: real(c, i, k, plex=PlexClient(fake_plex.url, TOKEN)))
+    html = client.post(f"/discover/{did}/songs", data={"k": ["301", "303"]}).text
+    assert "Discover Weekly created with 2 songs from this artist" in html and "2 songs · your picks" in html
+    keys = fake_plex.playlists[get_meta(lib, "discover_playlist_key")]["_keys"]
+    assert {"301", "303"} <= set(keys) and "300" not in keys
+    assert "Back to automatic" in client.get(f"/discover/{did}/songs").text
+
+
 def test_playlist_title_follows_cadence(lib):
     s = Settings(lib)
     s.set("discover_cadence", "monthly")

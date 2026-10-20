@@ -42,22 +42,39 @@
   {% else %}<div class="dim">Nothing waiting. Click <b>Run now</b> to look for new artists.</div>{% endif %}
 </div>
 
-{% for title, rows, empty in [("Sent to Lidarr", requested, "Nothing requested yet."), ("Arrived in Plex", arrived, "Nothing has arrived yet - it shows up here after Lidarr downloads it and Plex picks it up.")] %}
 <div class="card">
-  <h2>{{ title }}</h2>
-  {% if rows %}
+  <h2>Sent to Lidarr</h2>
+  {% if requested %}
   <div class="table-wrap"><table class="small">
     <thead><tr><th>Artist</th><th>Album</th><th class="hide-sm">Note</th><th>When</th></tr></thead>
     <tbody>
-    {% for d in rows %}
+    {% for d in requested %}
       <tr><td>{{ d.artist_name }}</td><td>{{ d.album_title or '-' }}</td><td class="hide-sm dim">{{ d.note or '' }}</td>
-        <td class="dim nowrap">{{ (d.arrived_at or d.requested_at)|ago }}</td></tr>
+        <td class="dim nowrap">{{ d.requested_at|ago }}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
-  {% else %}<div class="dim small">{{ empty }}</div>{% endif %}
+  {% else %}<div class="dim small">Nothing requested yet.</div>{% endif %}
 </div>
-{% endfor %}
+
+<div class="card">
+  <h2>Arrived in Plex</h2>
+  {% if arrived %}
+  <div class="table-wrap"><table class="small">
+    <thead><tr><th>Artist</th><th>Album</th><th class="hide-sm">In {{ playlist_title }}</th><th>When</th><th></th></tr></thead>
+    <tbody>
+    {% for d in arrived %}
+      <tr><td>{{ d.artist_name }}</td><td>{{ d.album_title or '-' }}</td>
+        <td class="hide-sm dim">{{ d.in_playlist }} song{{ 's' if d.in_playlist != 1 }}{% if d.picked_at %} · your picks{% endif %}</td>
+        <td class="dim nowrap">{{ d.arrived_at|ago }}</td>
+        <td class="actions"><button class="btn" hx-get="/discover/{{ d.id }}/songs" hx-target="#song-picker" hx-swap="innerHTML"
+              title="Choose which of this artist's songs go into {{ playlist_title }}">Pick songs</button></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="dim small">Nothing has arrived yet - it shows up here after Lidarr downloads it and Plex picks it up.</div>{% endif %}
+  <div id="song-picker"></div>
+</div>
 
 {% if failed %}
 <div class="card">

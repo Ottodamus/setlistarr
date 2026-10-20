@@ -42,6 +42,10 @@ def _page_ctx(request: Request, conn) -> dict:
     runs = [dict(r) for r in conn.execute("SELECT * FROM discover_runs ORDER BY id DESC LIMIT 5")]
     for r in runs:
         r["stats"] = json.loads(r.pop("stats_json") or "{}")
+    arrived = _rows(conn, "arrived")
+    in_pl = svc.playlist_keys(conn)
+    for d in arrived:
+        d["in_playlist"] = sum(1 for t in svc.artist_tracks(conn, d) if t["plex_key"] in in_pl)
     key = get_meta(conn, "discover_playlist_key")
     playlist = conn.execute("SELECT * FROM managed_playlists WHERE plex_playlist_key = ?", (key,)).fetchone() if key else None
     nxt = next((j.next_run_time for j in request.app.state.scheduler._sched.get_jobs()
@@ -53,7 +57,7 @@ def _page_ctx(request: Request, conn) -> dict:
         "lb_ready": bool(s.get("listenbrainz_token") and s.get("listenbrainz_user")),
         "lastfm_ready": bool(s.get("lastfm_api_key")),
         "suggested": _rows(conn, "suggested"), "requested": _rows(conn, "requested"),
-        "arrived": _rows(conn, "arrived"), "failed": _rows(conn, "failed"), "dismissed": _rows(conn, "dismissed", 50),
+        "arrived": arrived, "failed": _rows(conn, "failed"), "dismissed": _rows(conn, "dismissed", 50),
         "runs": runs, "running": any(r["status"] == "running" for r in runs),
         "playlist": dict(playlist) if playlist else None, "playlist_title": svc.playlist_title(s),
         "draft_id": get_meta(conn, "discover_draft_id"), "next_run": nxt,
@@ -108,6 +112,38 @@ def dismiss(discovery_id: int, request: Request, conn: sqlite3.Connection = Depe
 def undo(discovery_id: int, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
     svc.dismiss(conn, discovery_id, undo=True)
     return _lists(request, conn)
+
+
+@router.get("/discover/{discovery_id}/songs")
+def song_picker(discovery_id: int, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
+    d = conn.execute("SELECT * FROM discoveries WHERE id = ?", (discovery_id,)).fetchone()
+    if not d or d["status"] != "arrived":
+        return templates.TemplateResponse(request, "partials/alert.html",
+                                          {"level": "error", "message": "That artist hasn't arrived in Plex."})
+    in_pl = svc.playlist_keys(conn)
+    tracks = svc.artist_tracks(conn, d)
+    for t in tracks:
+        t["in_playlist"] = t["plex_key"] in in_pl
+    s = Settings(conn)
+    return templates.TemplateResponse(request, "partials/discover_songs.html", {
+        "d": dict(d), "tracks": tracks, "playlist_title": svc.playlist_title(s),
+        "has_playlist": bool(get_meta(conn, "discover_draft_id")), "window": s.get("discover_window_weeks")})
+
+
+@router.post("/discover/{discovery_id}/songs")
+async def save_songs(discovery_id: int, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
+    form = await request.form()
+    keys = None if form.get("auto") else [str(k) for k in form.getlist("k")]
+    try:
+        res = svc.set_picks(conn, discovery_id, keys)
+    except svc.DiscoverError as e:
+        return _lists(request, conn, error=str(e))
+    if res.get("status") != "ok":
+        return _lists(request, conn, error=f"Couldn't update the playlist: {res.get('error') or res.get('note')}")
+    n = res["songs"]
+    what = "back to the automatic picks" if keys is None else f"{n} song{'s' if n != 1 else ''}"
+    verb = {"unchanged": "already has", "created": "created with"}.get(res.get("action"), "updated -")
+    return _lists(request, conn, notice=f"{res['title']} {verb} {what} from this artist.")
 
 
 @router.post("/discover/run")
