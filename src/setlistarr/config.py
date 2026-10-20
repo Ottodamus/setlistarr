@@ -86,6 +86,8 @@ class SettingDef:
     secret: bool = False
     help: str = ""
     choices: tuple[tuple[str, str], ...] = ()  # (value, label); anything else falls back to default
+    help_on: str = ""   # booleans: what happens when it's on / off (shown next to the switch)
+    help_off: str = ""
 
 
 SETTING_DEFS: dict[str, SettingDef] = {
@@ -104,9 +106,13 @@ SETTING_DEFS: dict[str, SettingDef] = {
         SettingDef("lastfm_api_key", "Last.fm API key", env="LASTFM_API_KEY", secret=True),
         SettingDef("musicbrainz_contact", "MusicBrainz contact", env="MUSICBRAINZ_CONTACT",
                    default="", help="Email or URL; MusicBrainz requires it in the User-Agent"),
-        SettingDef("enrich_after_full_sync", "Enrich after full sync", bool, True),
+        SettingDef("enrich_after_full_sync", "Enrich after full sync", bool, True,
+                   help_on="On: MusicBrainz and Last.fm tags are refreshed right after every nightly full sync.",
+                   help_off="Off: tags are only refreshed when you click System -> Enrich tags."),
         SettingDef("enrich_track_tags", "Fetch per-track Last.fm tags", bool, True,
-                   help="One request per track on first run - slow on large libraries"),
+                   help_on="On: Last.fm tags for every track as well as every artist - best results, but the first "
+                           "run makes one request per track (slow on large libraries).",
+                   help_off="Off: artist-level Last.fm tags only - much faster, a bit less precise."),
         SettingDef("default_target_minutes", "Default playlist length (min)", int, 60,
                    help="Used when neither the form nor the prompt says how long"),
         SettingDef("default_max_per_artist", "Default max tracks per artist", int, 3),
@@ -119,7 +125,9 @@ SETTING_DEFS: dict[str, SettingDef] = {
                    choices=(("off", "Off (manual only)"), ("weekly", "Discover Weekly - Mondays 6:00"),
                             ("monthly", "Discover Monthly - the 1st, 6:00"))),
         SettingDef("discover_auto_approve", "Send new picks to Lidarr automatically", bool, False,
-                   help="Off: nothing is downloaded until you approve it on the Discover page."),
+                   help_on="On: every new pick is sent to Lidarr as soon as a Discover run finds it - its most "
+                           "popular album is monitored and searched without asking you.",
+                   help_off="Off: nothing is sent to Lidarr until you click Approve on the Discover page."),
         SettingDef("discover_per_run", "New artists per run", int, 8),
         SettingDef("discover_minutes", "Playlist length (min)", int, 60),
         SettingDef("discover_window_weeks", "Include arrivals from the last (weeks)", int, 4),
@@ -138,7 +146,10 @@ SETTING_DEFS: dict[str, SettingDef] = {
         SettingDef("listenbrainz_token", "ListenBrainz token", env="LISTENBRAINZ_TOKEN", secret=True,
                    help="listenbrainz.org -> your profile -> Settings -> User token"),
         SettingDef("listenbrainz_user", "ListenBrainz user", str, "", help="Filled in when the token is tested"),
-        SettingDef("scrobble_enabled", "Send my Plex plays to ListenBrainz", bool, False),
+        SettingDef("scrobble_enabled", "Send my Plex plays to ListenBrainz", bool, False,
+                   help_on="On: after each library sync, the chosen Plex account's music plays are sent to "
+                           "ListenBrainz (the first time, all the history Plex has kept).",
+                   help_off="Off: nothing is sent to ListenBrainz."),
         SettingDef("scrobble_plex_account_id", "Plex account to send", int, 1,
                    help="Only this Plex account's plays are sent (1 = the server owner)"),
     ]

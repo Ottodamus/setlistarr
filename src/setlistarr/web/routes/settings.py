@@ -34,6 +34,7 @@ def _fields(s: Settings, keys: list[str]) -> list[dict]:
                 "value": "" if d.secret else ("" if val is None else val),
                 "is_set": val not in (None, ""),
                 "choices": d.choices,
+                "help_on": d.help_on, "help_off": d.help_off,
                 "source": s.source(k),
                 "env": d.env,
             }

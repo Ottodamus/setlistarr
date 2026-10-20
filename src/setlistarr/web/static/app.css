@@ -306,3 +306,20 @@ td.actions form, td.actions > .btn, td.actions > button { display: inline-block;
 .toolbar-form { min-width: 0; max-width: 100%; }
 .toolbar select { max-width: min(16em, 100%); }
 @media (max-width: 1100px) { .pl-chip { max-width: 9em; } }
+
+/* on/off switch (a styled checkbox) */
+.switch { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.switch-input { position: absolute; opacity: 0; width: 44px; height: 24px; margin: 0; cursor: pointer; }
+.switch-track { position: relative; width: 44px; height: 24px; border-radius: 12px; background: var(--bg-elev-2);
+                border: 1px solid var(--border); transition: background .15s, border-color .15s; flex-shrink: 0; }
+.switch-thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+                background: var(--text-dim); transition: transform .15s, background .15s; }
+.switch-input:checked + .switch-track { background: var(--accent); border-color: var(--accent); }
+.switch-input:checked + .switch-track .switch-thumb { transform: translateX(20px); background: var(--on-accent); }
+.switch-input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch-input:disabled + .switch-track { opacity: .5; }
+.switch-state { font-weight: 600; min-width: 2em; }
+.switch-input:checked ~ .switch-state { color: var(--accent); }
+.switch-dirty { font-size: 12px; color: var(--warn); }
+.switch-help { margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .switch-track, .switch-thumb { transition: none; } }

@@ -138,3 +138,18 @@ def test_jobs_table_explains_playlist_and_enrich_results(client, conn):
     assert "Playlists: 5 in Plex · all up to date" in html
     assert "no track changes" in html and "12,854 in library" in html
     assert "Enrich: 161 artists · 118,286 tags" in html and "reread=" not in html
+
+
+def test_boolean_settings_are_switches_explaining_both_states(client, conn):
+    from setlistarr.config import Settings
+
+    html = client.get("/settings/discover").text
+    assert 'role="switch"' in html and 'id="discover_auto_approve"' in html
+    assert "Off: nothing is sent to Lidarr until you click Approve" in html  # default state explained
+    assert 'data-help-on="On: every new pick is sent to Lidarr' in html     # the other state, for the toggle
+    Settings(conn).set("discover_auto_approve", True)
+    html = client.get("/settings/discover").text
+    i = html.index('id="discover_auto_approve-help"')
+    assert "On: every new pick is sent to Lidarr" in html[i:i + 200]
+    assert 'class="switch-state">On<' in html
+    assert 'role="switch"' in client.get("/settings").text  # same control on the main settings page

@@ -123,6 +123,7 @@ def _settings_ctx(conn, **extra) -> dict:
         v = s.get(k)
         fields[k] = {"key": k, "label": d.label, "help": d.help, "choices": d.choices, "kind": d.kind.__name__,
                      "secret": d.secret, "value": "" if d.secret else ("" if v is None else v),
+                     "help_on": d.help_on, "help_off": d.help_off,
                      "is_set": v not in (None, ""), "source": s.source(k), "env": d.env}
     accounts = []
     try:

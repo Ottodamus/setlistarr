@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Discover settings{% endblock %}
 {% block heading %}Discover settings{% endblock %}
+{% from "macros.html" import switch %}
 {% macro field(k, type=None) %}
   {% set x = f[k] %}
   <div class="form-row"><label for="{{ k }}">{{ x.label }}</label>
@@ -10,7 +11,7 @@
           {% for v, label in x.choices %}<option value="{{ v }}" {{ 'selected' if x.value == v }}>{{ label }}</option>{% endfor %}
         </select>
       {% elif x.kind == 'bool' %}
-        <input type="checkbox" id="{{ k }}" name="{{ k }}" {{ 'checked' if x.value }} {{ 'disabled' if x.source == 'env' }}>
+        {{ switch(k, x.value, x.help_on, x.help_off, x.help, x.source == 'env') }}
       {% elif x.secret %}
         <input type="password" id="{{ k }}" name="{{ k }}" autocomplete="off" {{ 'disabled' if x.source == 'env' }}
                placeholder="{{ '•••••••• (set - leave blank to keep)' if x.is_set else 'not set' }}">
@@ -18,7 +19,7 @@
         <input type="{{ 'number' if x.kind == 'int' else 'text' }}" id="{{ k }}" name="{{ k }}" value="{{ x.value }}" {{ 'disabled' if x.source == 'env' }}>
       {% endif %}
       {% if x.source == 'env' %}<span class="badge env">set by ${{ x.env }}</span>{% endif %}
-      {% if x.help %}<div class="help">{{ x.help }}</div>{% endif %}
+      {% if x.help and x.kind != 'bool' %}<div class="help">{{ x.help }}</div>{% endif %}
     </div></div>
 {% endmacro %}
 {% block content %}

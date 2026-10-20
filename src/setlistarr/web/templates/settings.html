@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
 {% block heading %}Settings{% endblock %}
+{% from "macros.html" import switch %}
 {% block content %}
 {% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
 <div class="alert small">Lidarr, ListenBrainz and the Discover playlist are set up under <a href="/settings/discover">Discover settings</a>.</div>
@@ -20,7 +21,7 @@
           </select>
           {% if f.key == 'ui_theme' %}<span class="dim small">previews instantly - Save settings to keep it</span>{% endif %}
         {% elif f.kind == 'bool' %}
-          <input type="checkbox" id="{{ f.key }}" name="{{ f.key }}" {{ 'checked' if f.value }} {{ 'disabled' if f.source == 'env' }}>
+          {{ switch(f.key, f.value, f.help_on, f.help_off, f.help, f.source == 'env') }}
         {% elif f.secret %}
           <input type="password" id="{{ f.key }}" name="{{ f.key }}" autocomplete="off"
                  placeholder="{{ '•••••••• (set - leave blank to keep)' if f.is_set else 'not set' }}" {{ 'disabled' if f.source == 'env' }}>
@@ -28,7 +29,7 @@
           <input type="{{ 'number' if f.kind == 'int' else 'text' }}" id="{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" {{ 'disabled' if f.source == 'env' }}>
         {% endif %}
         {% if f.source == 'env' %}<span class="badge env">set by ${{ f.env }}</span>{% endif %}
-        {% if f.help %}<div class="help">{{ f.help }}</div>{% endif %}
+        {% if f.help and f.kind != 'bool' %}<div class="help">{{ f.help }}</div>{% endif %}
       </div>
     </div>
     {% endfor %}

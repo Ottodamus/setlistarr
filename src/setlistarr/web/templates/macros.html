@@ -1,0 +1,15 @@
+{# On/off switch for boolean settings. A real checkbox underneath (keyboard + screen readers work,
+   role="switch"), with a visible On/Off label, an explanation for the current state and a
+   "not saved yet" hint - app.js keeps those in sync when it's flipped. #}
+{% macro switch(name, checked, help_on="", help_off="", help="", disabled=False) %}
+{% set on_text = help_on or help %}{% set off_text = help_off or help %}
+<label class="switch" for="{{ name }}">
+  <input type="checkbox" class="switch-input" role="switch" id="{{ name }}" name="{{ name }}"
+         {{ 'checked' if checked }} {{ 'disabled' if disabled }} aria-describedby="{{ name }}-help"
+         data-help-on="{{ on_text }}" data-help-off="{{ off_text }}">
+  <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+  <span class="switch-state">{{ 'On' if checked else 'Off' }}</span>
+  <span class="switch-dirty" hidden>not saved yet</span>
+</label>
+<div class="help switch-help" id="{{ name }}-help">{{ on_text if checked else off_text }}</div>
+{% endmacro %}

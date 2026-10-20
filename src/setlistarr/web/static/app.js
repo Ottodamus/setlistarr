@@ -66,3 +66,15 @@ document.addEventListener("click", function (e) {
       }, "image/jpeg", 0.92);
   }
 });
+
+// On/off switches: keep the On/Off label, the explanation and the "not saved yet" hint in sync.
+document.addEventListener("change", function (e) {
+  var input = e.target;
+  if (!input.classList || !input.classList.contains("switch-input")) return;
+  var box = input.closest(".switch");
+  if (input.dataset.initial === undefined) input.dataset.initial = String(!input.checked);
+  box.querySelector(".switch-state").textContent = input.checked ? "On" : "Off";
+  box.querySelector(".switch-dirty").hidden = String(input.checked) === input.dataset.initial;
+  var help = document.getElementById(input.getAttribute("aria-describedby"));
+  if (help) help.textContent = input.checked ? input.dataset.helpOn : input.dataset.helpOff;
+});
