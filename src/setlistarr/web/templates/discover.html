@@ -4,10 +4,14 @@
 {% block toolbar %}
 <div class="spacer"></div>
 <a class="btn" href="/settings/discover">Discover settings</a>
+<form method="post" action="/discover/sync" style="display:inline"><button class="btn" {{ 'disabled' if syncing }}
+  title="Sync the Plex library now so anything Lidarr downloaded shows up under Arrived">{{ 'Syncing…' if syncing else 'Sync now' }}</button></form>
 <form method="post" action="/discover/run" style="display:inline"><button class="btn primary" {{ 'disabled' if running }}>{{ 'Running…' if running else 'Run now' }}</button></form>
 {% endblock %}
 {% block content %}
 {% if request.query_params.get('started') %}<div class="alert alert-ok">Discover run started - refresh in a moment to see the results.</div>{% endif %}
+{% if request.query_params.get('sync') == 'started' %}<div class="alert alert-ok">Library sync started. Artists whose music Lidarr has downloaded - and Plex has scanned - move to <b>Arrived in Plex</b> when it finishes.</div>{% endif %}
+{% if request.query_params.get('sync') == 'noplex' %}<div class="alert alert-error">Connect Plex in <a href="/settings">Settings</a> first.</div>{% endif %}
 
 {% set src = s.discover_source %}
 {% if src == 'lastfm' and not lastfm_ready %}
@@ -22,7 +26,7 @@
 <div class="tiles">
   <div class="tile"><div class="v">{{ suggested|length }}</div><div class="k">Waiting for your OK</div></div>
   <div class="tile"><div class="v">{{ requested|length }}</div><div class="k">Sent to Lidarr</div></div>
-  <div class="tile"><div class="v">{{ arrived|length }}</div><div class="k">Arrived in Plex</div></div>
+  <div class="tile"><div class="v">{{ arrived|length }}</div><div class="k">Arrived in Plex · synced {{ last_sync|ago }}</div></div>
   <div class="tile"><div class="v small" style="font-size:15px;padding-top:6px">{{ 'ListenBrainz' if src == 'listenbrainz' else 'Last.fm' }}</div>
     <div class="k">{% if s.discover_cadence == 'off' %}Manual runs only{% else %}{{ s.discover_cadence|capitalize }}{% if next_run %} · next {{ next_run.strftime('%a %b %d %H:%M') }}{% endif %}{% endif %}
       · {{ 'auto-approve' if s.discover_auto_approve else 'ask first' }}</div></div>
@@ -62,5 +66,5 @@
   </table></div>
 </div>
 {% endif %}
-{% if running %}<div hx-get="/discover" hx-trigger="every 4s" hx-select="main" hx-target="main" hx-swap="outerHTML"></div>{% endif %}
+{% if running or syncing %}<div hx-get="/discover" hx-trigger="every 4s" hx-select="main" hx-target="main" hx-swap="outerHTML"></div>{% endif %}
 {% endblock %}

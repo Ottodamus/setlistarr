@@ -15,6 +15,7 @@ from ...core.listenbrainz import ListenBrainzClient, ListenBrainzError
 from ...core.plex.client import PlexError, client_from_settings
 from ...services import discover as svc
 from ...services.covers import cover_providers
+from ...services.jobs import library_busy
 from ..deps import get_conn, templates
 
 router = APIRouter()
@@ -56,6 +57,9 @@ def _page_ctx(request: Request, conn) -> dict:
         "runs": runs, "running": any(r["status"] == "running" for r in runs),
         "playlist": dict(playlist) if playlist else None, "playlist_title": svc.playlist_title(s),
         "draft_id": get_meta(conn, "discover_draft_id"), "next_run": nxt,
+        "last_sync": conn.execute("SELECT MAX(last_sync_at) FROM libraries WHERE enabled = 1").fetchone()[0],
+        "syncing": library_busy() or bool(conn.execute(
+            "SELECT 1 FROM jobs WHERE status = 'running' AND kind IN ('sync', 'sync-full')").fetchone()),
     }
 
 
@@ -110,6 +114,16 @@ def undo(discovery_id: int, request: Request, conn: sqlite3.Connection = Depends
 def run_now(request: Request):
     request.app.state.scheduler.trigger_discover()
     return RedirectResponse("/discover?started=1", status_code=303)
+
+
+@router.post("/discover/sync")
+def sync_now(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
+    """Library sync from the Discover page: picks up what Lidarr downloaded (once Plex has scanned
+    it) and moves those artists to Arrived. Same job as System -> Sync now."""
+    if not Settings(conn).plex_configured():
+        return RedirectResponse("/discover?sync=noplex", status_code=303)
+    request.app.state.scheduler.trigger("sync")
+    return RedirectResponse("/discover?sync=started", status_code=303)
 
 
 # --------------------------------------------------------------------------- #

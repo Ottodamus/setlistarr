@@ -62,9 +62,11 @@ for i, (name, status, why) in enumerate([
         ("The Brian Jonestown Massacre Featuring A Long Guest List", "suggested", ["ABBA"]),
         ("Ride", "requested", []), ("Slowdive", "arrived", []), ("Unknown Artist", "failed", [])]):
     conn.execute("INSERT INTO discoveries(ident, artist_name, artist_mbid, source, score, reasons_json, status, album_title, "
-                 "note, first_seen_at, updated_at, requested_at) VALUES(?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'),datetime('now'))",
+                 "album_mbid, album_how, album_checked_at, "
+                 "note, first_seen_at, updated_at, requested_at) VALUES(?,?,?,?,?,?,?,?,?,?,datetime('now'),?,datetime('now'),datetime('now'),datetime('now'))",
                  (f"mbid-{i}", name, f"mbid-{i}", "lastfm", 3.2 - i, json.dumps(why), status,
-                  "Nowhere (Remastered Deluxe Edition)" if status != "suggested" else None,
+                  "Heaven or Las Vegas (2014 Remastered Deluxe Anniversary Edition)" if i != 1 else None,
+                  f"rg-{i}" if i != 1 else None, "Last.fm top album", 
                   "Couldn't identify this artist on MusicBrainz, so Lidarr can't add it" if status == "failed" else "Album chosen by Last.fm top album"))
 conn.commit()
 save_provider(conn, ProviderConfig(id=None, name="llama3.1:8b", kind="ollama", model="llama3.1:8b",
@@ -176,7 +178,7 @@ with sync_playwright() as p:
             issues = page.evaluate(DETECT)
             if issues:
                 report.setdefault(path, {})[w] = [i["msg"] for i in issues]
-            if shots and w in (1440, 1100, 390) and os.makedirs(OUT, exist_ok=True) is None and path in (f"/generate/{gid}", "/recipes", "/settings/providers", f"/recipes/{rid}", "/library", "/library/artists"):
+            if shots and w in (1440, 1100, 390) and os.makedirs(OUT, exist_ok=True) is None and path in (f"/generate/{gid}", "/recipes", "/settings/providers", f"/recipes/{rid}", "/library", "/library/artists", "/discover"):
                 page.screenshot(path=f"{OUT}/shot-{w}-{path.strip('/').replace('/', '_') or 'home'}.png", full_page=True)
         page.close()
     browser.close()

@@ -251,7 +251,10 @@ def _request_one(conn, d, lidarr, lb, http, in_lidarr, root, qp, mp) -> dict[str
         template = lidarr.lookup(mbid)
         if not template:
             return finish("failed", "Lidarr couldn't find this artist in its metadata", artist_mbid=mbid)
-        album_mbid, album_title, how = popular_album(conn, mbid, d["artist_name"], lb)
+        if d.get("album_checked_at"):  # the album shown on the Discover page is the one that's sent
+            album_mbid, album_title, how = d["album_mbid"], d["album_title"], d["album_how"] or "the Discover page"
+        else:
+            album_mbid, album_title, how = popular_album(conn, mbid, d["artist_name"], lb)
         added = lidarr.add_artist(template, root_folder=root, quality_profile_id=qp, metadata_profile_id=mp,
                                   album_mbid=album_mbid)
     except LidarrError as e:
@@ -261,6 +264,29 @@ def _request_one(conn, d, lidarr, lb, http, in_lidarr, root, qp, mp) -> dict[str
     log.info("discover.requested", artist=d["artist_name"], album=album_title, how=how)
     return finish("requested", f"Album chosen by {how}" if album_mbid else how.capitalize(), artist_mbid=mbid,
                   lidarr_artist_id=(added or {}).get("id"), album_mbid=album_mbid, album_title=album_title)
+
+
+def resolve_albums(conn: sqlite3.Connection, lb: ListenBrainzClient | None, *, ids: list[int] | None = None) -> int:
+    """Identify the artist and pick its most popular album for suggestions that don't have one yet,
+    so the Discover page shows what would be downloaded. Returns how many were resolved."""
+    http, _ = _http(conn)
+    q = "SELECT * FROM discoveries WHERE status IN ('suggested', 'failed') AND album_checked_at IS NULL"
+    rows = conn.execute(q + (f" AND id IN ({','.join('?' * len(ids))})" if ids else ""), ids or []).fetchall()
+    done = 0
+    for d in rows:
+        mbid = d["artist_mbid"] or mb_artist_mbid(http, d["artist_name"])
+        if not mbid:
+            with conn:
+                conn.execute("UPDATE discoveries SET album_checked_at=?, album_how=? WHERE id=?",
+                             (_now(), "artist not found on MusicBrainz", d["id"]))
+            continue
+        album_mbid, title, how = popular_album(conn, mbid, d["artist_name"], lb)
+        with conn:
+            conn.execute("UPDATE discoveries SET artist_mbid=?, album_mbid=?, album_title=?, album_how=?, "
+                         "album_checked_at=?, updated_at=? WHERE id=?",
+                         (mbid, album_mbid, title, how, _now(), _now(), d["id"]))
+        done += 1
+    return done
 
 
 def dismiss(conn: sqlite3.Connection, discovery_id: int, undo: bool = False) -> None:
@@ -440,6 +466,7 @@ def run(conn: sqlite3.Connection, trigger: str = "manual", *, build: bool = True
             else:
                 cands = candidates_lastfm(conn)
             stats["new_suggestions"] = refresh(conn, cands, int(s.get("discover_per_run")))
+            stats["albums_picked"] = resolve_albums(conn, lb)
         except (DiscoverError, ListenBrainzError) as e:
             stats["suggestions_error"] = str(e)
         if s.get("discover_auto_approve"):

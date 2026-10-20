@@ -10,18 +10,25 @@
     <span id="disc-spin" class="spin"></span>
     <button class="btn" hx-post="/discover/approve-all" hx-target="#discover-lists" hx-swap="outerHTML"
             hx-indicator="#disc-spin" hx-disabled-elt="this" {{ 'disabled' if not lidarr_ready }}
-            hx-confirm="Send all {{ suggested|length }} artists to Lidarr? Each gets its most popular album.">Approve all</button>
+            hx-confirm="Send all {{ suggested|length }} artists to Lidarr? Each gets the album shown next to it.">Approve all</button>
     {% endif %}
   </div>
   {% if suggested %}
   <div class="table-wrap"><table>
-    <thead><tr><th>Artist</th><th>Why</th><th class="num hide-sm">Score</th><th></th></tr></thead>
+    <thead><tr><th>Artist</th><th>Album to download</th><th class="hide-sm">Why</th><th class="num hide-md">Score</th><th></th></tr></thead>
     <tbody>
     {% for d in suggested %}
       <tr>
         <td><b>{{ d.artist_name }}</b>{% if d.artist_mbid %}<div class="small"><a href="https://musicbrainz.org/artist/{{ d.artist_mbid }}" target="_blank" rel="noopener">MusicBrainz ↗</a></div>{% endif %}</td>
-        <td class="small">{% if d.source == 'listenbrainz' %}Recommended tracks: {{ d.reasons|join(', ') }}{% else %}Because you play {{ d.reasons|join(', ') }}{% endif %}</td>
-        <td class="num hide-sm dim small">{{ '%.2f'|format(d.score) }}</td>
+        <td class="small">
+          {% if d.album_title %}<b>{{ d.album_title }}</b>
+            {% if d.album_mbid %}<a href="https://musicbrainz.org/release-group/{{ d.album_mbid }}" target="_blank" rel="noopener" title="Open on MusicBrainz">↗</a>{% endif %}
+            <div class="dim">picked by {{ d.album_how }}</div>
+          {% elif d.album_checked_at %}<span class="dim">Lidarr's latest album</span><div class="dim">{{ d.album_how }}</div>
+          {% else %}<span class="dim">picked on the next Discover run (or when approved)</span>{% endif %}
+        </td>
+        <td class="small hide-sm">{% if d.source == 'listenbrainz' %}Recommended tracks: {{ d.reasons|join(', ') }}{% else %}Because you play {{ d.reasons|join(', ') }}{% endif %}</td>
+        <td class="num hide-md dim small">{{ '%.2f'|format(d.score) }}</td>
         <td class="actions">
           <button class="btn primary" hx-post="/discover/{{ d.id }}/approve" hx-target="#discover-lists" hx-swap="outerHTML"
                   hx-indicator="#disc-spin" hx-disabled-elt="this" {{ 'disabled' if not lidarr_ready }}

@@ -208,11 +208,15 @@ Discover finds artists you **don't** have yet, sends the ones you approve to Lid
 2. In Setlistarr: **Discover settings → Lidarr**, enter the Lidarr URL (e.g. `http://192.168.1.10:8686`)
    and the API key, click **Test connection & load folders** (or set `LIDARR_URL` / `LIDARR_API_KEY`).
 3. Pick the **root folder**, **quality profile** and **metadata profile** new artists should use, then **Save**.
+4. Recommended: in Lidarr, **Settings → Connect → + → Plex Media Server**, so Plex scans new downloads right
+   away and Setlistarr sees them on its next sync.
 
 When you approve an artist, Setlistarr adds it to Lidarr with **only its most popular album** monitored
 and searched - no whole discographies and no future releases. The album is picked from ListenBrainz
 listen counts (needs a ListenBrainz token) or Last.fm's top albums matched on MusicBrainz, otherwise
-Lidarr's "latest album" option is used.
+Lidarr's "latest album" option is used. The album is picked when the suggestion is found and shown in
+**Waiting for your OK** (with a MusicBrainz link), so you see exactly what will be downloaded before you
+approve it.
 
 ### 3. ListenBrainz (needed for the ListenBrainz source; optional otherwise)
 
@@ -240,6 +244,9 @@ creates itself and then replaces in place: up to 3 tracks by each artist that ar
 weeks (the album Lidarr fetched first), **topped up** with never-played tracks from your library that
 match what you play most, so it's never empty while downloads are pending. Artists are spread out so the
 same one doesn't play twice in a row. Open it from the Discover page to edit it or change its cover.
+
+**Sync now** on the Discover page runs a library sync, which checks whether requested albums have
+arrived in Plex (and sends plays to ListenBrainz if that's on) without waiting for the scheduled sync.
 
 ---
 
@@ -331,7 +338,7 @@ broken (Docker's health check uses it). Signed-in users get DB, Plex and schedul
 | *Enrich tags* shows "skipped" | Another library job was running; start it again when it's done. |
 | Discover: "Couldn't identify this artist on MusicBrainz" | The name didn't match a MusicBrainz artist closely enough; dismiss it, or add the artist in Lidarr yourself. |
 | Discover: ListenBrainz "no recommendations yet" | Keep *Send my Plex plays* on; ListenBrainz needs a few weeks of history. Use the Last.fm source meanwhile. |
-| Discover: an artist stays in "Sent to Lidarr" | Lidarr hasn't downloaded it yet, or Plex hasn't picked it up - check Lidarr's queue, then run a sync. |
+| Discover: an artist stays in "Sent to Lidarr" | Lidarr hasn't downloaded it yet, or Plex hasn't picked it up - check Lidarr's queue, then click **Sync now** on the Discover page. Adding Plex under Lidarr → Settings → Connect makes Plex scan new downloads straight away. |
 
 ---
 

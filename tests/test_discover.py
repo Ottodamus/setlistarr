@@ -252,3 +252,36 @@ def test_discover_page_and_approve_flow(client, lib, fs):
     s = Settings(lib)
     assert s.get("discover_source") == "listenbrainz" and s.get("discover_auto_approve") is False
     assert "periodic-discover" in {j.id for j in client.app.state.scheduler._sched.get_jobs()}
+
+
+def test_album_is_picked_up_front_shown_and_sent_as_shown(client, lib, fs, monkeypatch):
+    fs.add_catalog_artist(RIDE, "Ride")
+    fs.lb_popular[RIDE] = [{"release_group_mbid": "rg-nowhere", "release_group": {"name": "Nowhere", "type": "Album"}}]
+    res = svc.run(lib, "test", build=False, inject={"lb": lb(fs), "lidarr": lidarr(fs)})
+    assert res["albums_picked"] >= 1 and fs.lidarr_added == []  # nothing sent: ask-first default
+    row = lib.execute("SELECT * FROM discoveries WHERE artist_name='Ride'").fetchone()
+    assert (row["album_title"], row["album_mbid"], row["album_how"]) == ("Nowhere", "rg-nowhere", "ListenBrainz listen counts")
+    html = client.get("/discover").text
+    assert "Album to download" in html and "<b>Nowhere</b>" in html and "musicbrainz.org/release-group/rg-nowhere" in html
+    # ListenBrainz's popularity changes later - approving still sends what the page showed
+    fs.lb_popular[RIDE] = [{"release_group_mbid": "rg-other", "release_group": {"name": "Other", "type": "Album"}}]
+    popularity_calls = len(fs.requests_matching("top-release-groups"))
+    [sent] = svc.request(lib, [row["id"]], lidarr=lidarr(fs), lb=lb(fs))
+    assert fs.lidarr_added[0]["addOptions"]["albumsToMonitor"] == ["rg-nowhere"] and sent["album_title"] == "Nowhere"
+    assert len(fs.requests_matching("top-release-groups")) == popularity_calls  # not looked up again
+
+
+def test_unidentified_artist_is_flagged_before_approval(lib, fs):
+    svc.refresh(lib, svc.candidates_lastfm(lib), per_run=5)
+    svc.resolve_albums(lib, None)
+    row = lib.execute("SELECT * FROM discoveries WHERE artist_name='Cocteau Twins'").fetchone()
+    assert row["album_checked_at"] and row["album_title"] is None and "not found on MusicBrainz" in row["album_how"]
+
+
+def test_discover_sync_now_button(client, lib, monkeypatch):
+    kinds = []
+    monkeypatch.setattr(client.app.state.scheduler, "trigger", kinds.append)
+    r = client.post("/discover/sync", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/discover?sync=started" and kinds == ["sync"]
+    page = client.get("/discover?sync=started").text
+    assert "Library sync started" in page and 'action="/discover/sync"' in page

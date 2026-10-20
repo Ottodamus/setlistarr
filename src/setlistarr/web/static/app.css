@@ -271,6 +271,8 @@ th { overflow-wrap: normal; white-space: nowrap; }
 /* text columns may wrap mid-word, but never collapse to a one-letter sliver */
 td:not(.num):not(.nowrap):not(.actions):not(.handle):not(.row-actions) { min-width: 6.5em; }
 td.actions { text-align: right; }
+/* button labels never split mid-word ("Ap/pro/ve"); narrow screens stack the buttons instead */
+td.actions .btn { white-space: nowrap; overflow-wrap: normal; }
 td.actions form, td.actions > .btn, td.actions > button { display: inline-block; margin: 2px 0 2px 4px; }
 .list-row > :first-child { min-width: 0; overflow-wrap: anywhere; }
 /* narrow cards (half-width panels, phones): label above field */
