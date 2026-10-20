@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block toolbar %}<div class="spacer"></div><a class="btn" href="/discover">Discover</a>{% endblock %}
+{% block content %}
+<div id="draft" hx-get="/drafts/{{ draft_id }}/editor" hx-trigger="load" hx-swap="outerHTML"><div class="card dim">Loading…</div></div>
+<div id="cover-widget" hx-get="/covers/widget?draft_id={{ draft_id }}" hx-trigger="load" hx-swap="outerHTML"></div>
+{% endblock %}

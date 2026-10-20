@@ -1,0 +1,82 @@
+<div id="discover-lists">
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+{% if notice %}<div class="alert alert-ok">{{ notice }}</div>{% endif %}
+
+<div class="card">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <h2 style="margin:0">Waiting for your OK</h2>
+    <div class="spacer" style="flex:1"></div>
+    {% if suggested %}
+    <span id="disc-spin" class="spin"></span>
+    <button class="btn" hx-post="/discover/approve-all" hx-target="#discover-lists" hx-swap="outerHTML"
+            hx-indicator="#disc-spin" hx-disabled-elt="this" {{ 'disabled' if not lidarr_ready }}
+            hx-confirm="Send all {{ suggested|length }} artists to Lidarr? Each gets its most popular album.">Approve all</button>
+    {% endif %}
+  </div>
+  {% if suggested %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Artist</th><th>Why</th><th class="num hide-sm">Score</th><th></th></tr></thead>
+    <tbody>
+    {% for d in suggested %}
+      <tr>
+        <td><b>{{ d.artist_name }}</b>{% if d.artist_mbid %}<div class="small"><a href="https://musicbrainz.org/artist/{{ d.artist_mbid }}" target="_blank" rel="noopener">MusicBrainz ↗</a></div>{% endif %}</td>
+        <td class="small">{% if d.source == 'listenbrainz' %}Recommended tracks: {{ d.reasons|join(', ') }}{% else %}Because you play {{ d.reasons|join(', ') }}{% endif %}</td>
+        <td class="num hide-sm dim small">{{ '%.2f'|format(d.score) }}</td>
+        <td class="actions">
+          <button class="btn primary" hx-post="/discover/{{ d.id }}/approve" hx-target="#discover-lists" hx-swap="outerHTML"
+                  hx-indicator="#disc-spin" hx-disabled-elt="this" {{ 'disabled' if not lidarr_ready }}
+                  title="{{ 'Send to Lidarr with its most popular album' if lidarr_ready else 'Connect Lidarr first' }}">Approve</button>
+          <button class="btn" hx-post="/discover/{{ d.id }}/dismiss" hx-target="#discover-lists" hx-swap="outerHTML">Dismiss</button>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="dim">Nothing waiting. Click <b>Run now</b> to look for new artists.</div>{% endif %}
+</div>
+
+{% for title, rows, empty in [("Sent to Lidarr", requested, "Nothing requested yet."), ("Arrived in Plex", arrived, "Nothing has arrived yet - it shows up here after Lidarr downloads it and Plex picks it up.")] %}
+<div class="card">
+  <h2>{{ title }}</h2>
+  {% if rows %}
+  <div class="table-wrap"><table class="small">
+    <thead><tr><th>Artist</th><th>Album</th><th class="hide-sm">Note</th><th>When</th></tr></thead>
+    <tbody>
+    {% for d in rows %}
+      <tr><td>{{ d.artist_name }}</td><td>{{ d.album_title or '-' }}</td><td class="hide-sm dim">{{ d.note or '' }}</td>
+        <td class="dim nowrap">{{ (d.arrived_at or d.requested_at)|ago }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="dim small">{{ empty }}</div>{% endif %}
+</div>
+{% endfor %}
+
+{% if failed %}
+<div class="card">
+  <h2>Couldn't add</h2>
+  <div class="table-wrap"><table class="small">
+    <tbody>
+    {% for d in failed %}
+      <tr><td>{{ d.artist_name }}</td><td style="color:var(--warn)">{{ d.note }}</td>
+        <td class="actions"><button class="btn" hx-post="/discover/{{ d.id }}/approve" hx-target="#discover-lists" hx-swap="outerHTML" {{ 'disabled' if not lidarr_ready }}>Retry</button>
+          <button class="btn" hx-post="/discover/{{ d.id }}/dismiss" hx-target="#discover-lists" hx-swap="outerHTML">Dismiss</button></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
+{% if dismissed %}
+<details class="card">
+  <summary><b>Dismissed</b> <span class="dim small">({{ dismissed|length }}) - never suggested again</span></summary>
+  <div class="table-wrap"><table class="small" style="margin-top:8px">
+    <tbody>
+    {% for d in dismissed %}
+      <tr><td>{{ d.artist_name }}</td><td class="actions"><button class="btn" hx-post="/discover/{{ d.id }}/undo" hx-target="#discover-lists" hx-swap="outerHTML">Undo</button></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</details>
+{% endif %}
+</div>

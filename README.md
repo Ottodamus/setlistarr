@@ -10,11 +10,13 @@ library, edit it, give it a cover, push it to Plex, and listen in Plexamp.
 - Draft editor: reorder, remove, add, lock tracks and regenerate around them
 - Playlist covers: upload & crop, or generate with AI
 - Recipes: saved prompts that refresh a Plex playlist on a schedule
+- Discover: artists you don't own yet (Last.fm or ListenBrainz), sent to Lidarr when you approve, and a
+  rolling Discover Weekly / Monthly playlist
 - Arr-style web UI with themes, single admin login, Docker / Portainer
 
 **Contents:** [Install](#install) · [First-run setup](#first-run-setup) ·
 [Tag enrichment (MusicBrainz & Last.fm)](#tag-enrichment-musicbrainz--lastfm) ·
-[AI providers](#ai-providers) · [Using it](#using-it) · [Updating](#updating) ·
+[AI providers](#ai-providers) · [Discover & Lidarr](#discover--lidarr) · [Using it](#using-it) · [Updating](#updating) ·
 [Configuration reference](#configuration-reference) · [Troubleshooting](#troubleshooting) ·
 [Security](#security) · [CLI / MCP](#cli--mcp) · [Development](#development)
 
@@ -186,6 +188,61 @@ lists the provider's models without spending anything.
 
 ---
 
+## Discover & Lidarr
+
+Discover finds artists you **don't** have yet, sends the ones you approve to Lidarr, and builds a
+**Discover Weekly** (or **Monthly**) playlist from what arrives. Set it up under
+**Discover → Discover settings**.
+
+### 1. Pick a recommendation source
+
+| | Last.fm similar artists | ListenBrainz recommendations |
+|---|---|---|
+| How | For the artists you play most, Last.fm lists similar artists; ones you don't own are ranked by how many of *your* artists point to them | Personal recommendations from your actual listening history, refreshed by ListenBrainz about weekly |
+| Needs | The Last.fm API key ([setup](#set-up-lastfm)) and one *Enrich tags* run | A ListenBrainz token (below) and a few weeks of plays sent to ListenBrainz |
+| Feels like | "More like what I already love" | Spotify-style Discover Weekly |
+
+### 2. Connect Lidarr
+
+1. In Lidarr: **Settings → General → Security → API Key** - copy it.
+2. In Setlistarr: **Discover settings → Lidarr**, enter the Lidarr URL (e.g. `http://192.168.1.10:8686`)
+   and the API key, click **Test connection & load folders** (or set `LIDARR_URL` / `LIDARR_API_KEY`).
+3. Pick the **root folder**, **quality profile** and **metadata profile** new artists should use, then **Save**.
+
+When you approve an artist, Setlistarr adds it to Lidarr with **only its most popular album** monitored
+and searched - no whole discographies and no future releases. The album is picked from ListenBrainz
+listen counts (needs a ListenBrainz token) or Last.fm's top albums matched on MusicBrainz, otherwise
+Lidarr's "latest album" option is used.
+
+### 3. ListenBrainz (needed for the ListenBrainz source; optional otherwise)
+
+1. Sign up at [listenbrainz.org](https://listenbrainz.org) (uses a MusicBrainz account), then open
+   **your profile → Settings → User token** and copy it.
+2. **Discover settings → ListenBrainz**: paste the token, click **Test token** (or set `LISTENBRAINZ_TOKEN`).
+3. Tick **Send my Plex plays to ListenBrainz** and choose the **Plex account** (the server owner by default).
+   After each library sync that account's music plays are sent; the first time, all the history Plex has
+   kept for it. Other people's plays on your server are never sent. Don't also run another ListenBrainz
+   scrobbler for Plex, or plays are counted twice.
+
+### 4. Choose how it runs
+
+- **Discover playlist**: *Off* (manual), *Discover Weekly* (Mondays 6:00) or *Discover Monthly* (the 1st, 6:00).
+- **Send new picks to Lidarr automatically**: **off by default** - nothing is downloaded until you click
+  *Approve* on the Discover page. Turn it on to send every new pick straight to Lidarr.
+- **New artists per run**, **playlist length**, **arrivals window** (how many weeks of new music the
+  playlist includes) and the **playlist cover** (don't touch / keep one / new AI cover every run).
+
+### How the Discover playlist is built
+
+Each run (or **Run now**): finds new suggestions → sends approved ones to Lidarr → notices which requested
+artists have arrived in Plex (also checked after every sync) → rebuilds **one** playlist that Setlistarr
+creates itself and then replaces in place: up to 3 tracks by each artist that arrived in the last few
+weeks (the album Lidarr fetched first), **topped up** with never-played tracks from your library that
+match what you play most, so it's never empty while downloads are pending. Artists are spread out so the
+same one doesn't play twice in a row. Open it from the Discover page to edit it or change its cover.
+
+---
+
 ## Using it
 
 - **Generate** - type a prompt, pick a provider. Optional: fixed constraints (length, max per
@@ -244,6 +301,8 @@ field becomes read-only).
 | `PLEX_URL`, `PLEX_TOKEN` | Plex server and token |
 | `LASTFM_API_KEY`, `MUSICBRAINZ_CONTACT` | Tag enrichment |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | Used by providers whose key field is blank |
+| `LIDARR_URL`, `LIDARR_API_KEY` | Lidarr connection for Discover |
+| `LISTENBRAINZ_TOKEN` | ListenBrainz recommendations, popularity data and sending plays |
 | `SETLISTARR_COOKIE_SECURE` | `1` when served over HTTPS (reverse proxy); leave `0` for plain-HTTP LAN |
 | `SETLISTARR_AUTH_DISABLED` | `1` turns the login off (e.g. behind an auth proxy) |
 | `SETLISTARR_SECRET_KEY` | Session signing key; generated and stored in `/config/secret_key` if unset |
@@ -270,6 +329,9 @@ broken (Docker's health check uses it). Signed-in users get DB, Plex and schedul
 | A playlist is too short ("min short of the target") | Your library has too few matching tracks; loosen the prompt or constraints. |
 | Small local model picks odd tracks | Use two-stage mode, a bigger model, or Claude/ChatGPT for important playlists. |
 | *Enrich tags* shows "skipped" | Another library job was running; start it again when it's done. |
+| Discover: "Couldn't identify this artist on MusicBrainz" | The name didn't match a MusicBrainz artist closely enough; dismiss it, or add the artist in Lidarr yourself. |
+| Discover: ListenBrainz "no recommendations yet" | Keep *Send my Plex plays* on; ListenBrainz needs a few weeks of history. Use the Last.fm source meanwhile. |
+| Discover: an artist stays in "Sent to Lidarr" | Lidarr hasn't downloaded it yet, or Plex hasn't picked it up - check Lidarr's queue, then run a sync. |
 
 ---
 

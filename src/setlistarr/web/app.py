@@ -23,7 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth
 from .routes import auth as auth_routes
-from .routes import covers, drafts, generate, health, history, home, library, providers, recipes, settings, stats, system
+from .routes import covers, discover, drafts, generate, health, history, home, library, providers, recipes, settings, stats, system
 
 log = get_logger(__name__)
 
@@ -58,7 +58,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
     for module in (home, auth_routes, health, library, stats, settings, providers, system, generate, drafts,
-                   history, recipes, covers):
+                   history, recipes, covers, discover):
         app.include_router(module.router)
 
     @app.middleware("http")

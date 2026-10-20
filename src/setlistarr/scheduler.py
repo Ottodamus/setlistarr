@@ -27,6 +27,16 @@ def _plex_configured() -> bool:
         conn.close()
 
 
+def _discover_job(trigger: str):
+    from .services.discover import run
+
+    conn = connect(bootstrap().db_path)
+    try:
+        return run(conn, trigger)
+    finally:
+        conn.close()
+
+
 def _sync(kind: str, full: bool):
     def job(trigger: str):
         # Before first-run setup, don't fill the job log with hourly "not configured" errors.
@@ -77,8 +87,18 @@ class Scheduler:
             conn.close()
 
         for job in self._sched.get_jobs():
-            if job.id.startswith("recipe-"):
+            if job.id.startswith("recipe-") or job.id == "periodic-discover":
                 job.remove()
+        cadence = None
+        conn = connect(bootstrap().db_path)
+        try:
+            cadence = Settings(conn).get("discover_cadence")
+        finally:
+            conn.close()
+        cron_for = {"weekly": "0 6 * * 1", "monthly": "0 6 1 * *"}
+        if cadence in cron_for:
+            self._sched.add_job(_discover_job, CronTrigger.from_crontab(cron_for[cadence], timezone=self._sched.timezone),
+                                args=["schedule"], id="periodic-discover", name="Discover")
         for r in recipes:
             try:
                 self._sched.add_job(
@@ -110,6 +130,9 @@ class Scheduler:
     def trigger(self, kind: str) -> None:
         """Run a job now on the scheduler's thread pool."""
         self._sched.add_job(JOBS[kind], args=["manual"], next_run_time=datetime.now(self._sched.timezone))
+
+    def trigger_discover(self) -> None:
+        self._sched.add_job(_discover_job, args=["manual"], next_run_time=datetime.now(self._sched.timezone))
 
     def trigger_recipe(self, recipe_id: int) -> None:
         self._sched.add_job(run_recipe, args=[recipe_id, "manual"], next_run_time=datetime.now(self._sched.timezone))

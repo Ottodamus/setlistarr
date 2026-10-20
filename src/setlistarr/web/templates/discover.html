@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Discover{% endblock %}
+{% block heading %}Discover{% endblock %}
+{% block toolbar %}
+<div class="spacer"></div>
+<a class="btn" href="/settings/discover">Discover settings</a>
+<form method="post" action="/discover/run" style="display:inline"><button class="btn primary" {{ 'disabled' if running }}>{{ 'Running…' if running else 'Run now' }}</button></form>
+{% endblock %}
+{% block content %}
+{% if request.query_params.get('started') %}<div class="alert alert-ok">Discover run started - refresh in a moment to see the results.</div>{% endif %}
+
+{% set src = s.discover_source %}
+{% if src == 'lastfm' and not lastfm_ready %}
+<div class="alert alert-warn">The Last.fm source needs a Last.fm API key and one <b>Enrich tags</b> run. Add the key under <a href="/settings">Settings → Enrichment</a>.</div>
+{% elif src == 'listenbrainz' and not lb_ready %}
+<div class="alert alert-warn">The ListenBrainz source needs a ListenBrainz token - add and test it under <a href="/settings/discover">Discover settings</a>.</div>
+{% endif %}
+{% if not lidarr_ready %}
+<div class="alert alert-warn">Lidarr isn't connected yet, so approved artists can't be sent anywhere. Connect it under <a href="/settings/discover">Discover settings</a>.</div>
+{% endif %}
+
+<div class="tiles">
+  <div class="tile"><div class="v">{{ suggested|length }}</div><div class="k">Waiting for your OK</div></div>
+  <div class="tile"><div class="v">{{ requested|length }}</div><div class="k">Sent to Lidarr</div></div>
+  <div class="tile"><div class="v">{{ arrived|length }}</div><div class="k">Arrived in Plex</div></div>
+  <div class="tile"><div class="v small" style="font-size:15px;padding-top:6px">{{ 'ListenBrainz' if src == 'listenbrainz' else 'Last.fm' }}</div>
+    <div class="k">{% if s.discover_cadence == 'off' %}Manual runs only{% else %}{{ s.discover_cadence|capitalize }}{% if next_run %} · next {{ next_run.strftime('%a %b %d %H:%M') }}{% endif %}{% endif %}
+      · {{ 'auto-approve' if s.discover_auto_approve else 'ask first' }}</div></div>
+</div>
+
+{% if playlist %}
+<div class="card">
+  <h2>{{ playlist.title }}</h2>
+  <div class="dim small">{{ playlist.track_count }} tracks · updated {{ playlist.updated_at|ago }}
+    {% if draft_id %} · <a href="/drafts/{{ draft_id }}">view / edit / change cover</a>{% endif %}</div>
+</div>
+{% else %}
+<div class="card dim small">The <b>{{ playlist_title }}</b> playlist is created on the first run: tracks by discovered artists that
+  arrived in the last {{ s.discover_window_weeks }} weeks, topped up with unplayed tracks from your library that match what you play most.</div>
+{% endif %}
+
+{% include "partials/discover_lists.html" %}
+
+{% if runs %}
+<div class="card">
+  <h2>Recent runs</h2>
+  <div class="table-wrap"><table class="small">
+    <tbody>
+    {% for r in runs %}
+      <tr><td class="dim nowrap">{{ r.started_at|ago }}</td><td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+        <td>
+          {% if r.stats.new_suggestions is defined %}{{ r.stats.new_suggestions }} new suggestion{{ 's' if r.stats.new_suggestions != 1 }}{% endif %}
+          {% if r.stats.sent_to_lidarr %} · {{ r.stats.sent_to_lidarr }} sent to Lidarr{% endif %}
+          {% if r.stats.arrived %} · {{ r.stats.arrived }} arrived{% endif %}
+          {% if r.stats.playlist and r.stats.playlist.status == 'ok' %} · playlist {{ r.stats.playlist.action }} ({{ r.stats.playlist.tracks }} tracks, {{ r.stats.playlist.new_tracks }} new){% elif r.stats.playlist %} · playlist: {{ r.stats.playlist.note or r.stats.playlist.error }}{% endif %}
+          {% for k in ['suggestions_error', 'lidarr_error'] if r.stats[k] %}<div style="color:var(--warn)">{{ r.stats[k] }}</div>{% endfor %}
+          {% if r.stats.playlist and r.stats.playlist.cover_note %}<div style="color:var(--warn)">{{ r.stats.playlist.cover_note }}</div>{% endif %}
+          {% if r.error and not r.stats.suggestions_error %}<div style="color:var(--error)">{{ r.error }}</div>{% endif %}
+        </td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+{% if running %}<div hx-get="/discover" hx-trigger="every 4s" hx-select="main" hx-target="main" hx-swap="outerHTML"></div>{% endif %}
+{% endblock %}

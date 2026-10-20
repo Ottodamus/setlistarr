@@ -57,6 +57,13 @@ git-ignored - never in this file.
   browsers. Fonts: the image ships DejaVu and `render_svg` maps generic families to it. A push only
   uploads the cover when it changed (`managed_playlists.cover_id`); a failed cover never fails a push
   or a recipe run.
+- **Discover** (`services/discover.py`): never sends anything to Lidarr unless the user approved it or
+  turned on `discover_auto_approve` (default off). Lidarr gets ONE album per artist via
+  `addOptions.albumsToMonitor` with `monitor: "unknown"` (`"none"` would unmonitor the artist) and
+  `monitorNewItems: "none"`. The Discover playlist is its own managed playlist (key in `sync_meta`),
+  never an existing one. ListenBrainz popularity needs a token since 2026; recommendations/metadata don't.
+- **Scrobbling** (`services/scrobble.py`) is opt-in and sends ONE Plex account's plays (`accountID`
+  filter), watermarked so nothing is sent twice. Runs after each sync and must never fail the sync.
 - `/health` returns 200 when the app+DB work even if Plex is down (status `degraded`) so Docker
   doesn't restart-loop on a Plex outage.
 - Settings: env var (if defined for that setting) > `settings` table > default. Secrets are never

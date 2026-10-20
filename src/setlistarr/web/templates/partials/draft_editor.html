@@ -81,6 +81,7 @@
         <button class="btn primary" type="submit" {{ 'disabled' if not d.tracks }}>Push</button> <span id="push-spin-{{ d.id }}" class="spin"></span>
       </form>
     </div>
+    {% if d.generation_id %}
     <div class="card">
       <h2>Regenerate</h2>
       {% set n_locked = d.tracks|selectattr('locked')|list|length %}
@@ -97,5 +98,9 @@
           Want this refreshed automatically? <a href="/recipes/new?draft_id={{ d.id }}">Save as recipe</a>.</div>
       </form>
     </div>
+    {% else %}
+    <div class="card dim small">Built by <a href="/discover">Discover</a> - it's rebuilt on each Discover run. Pushing here
+      replaces the playlist now; changing the cover here is kept when the Discover cover is set to "Keep one cover".</div>
+    {% endif %}
   </div>
 </div>

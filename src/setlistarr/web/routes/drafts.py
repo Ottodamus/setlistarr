@@ -40,10 +40,12 @@ async def _form(request: Request) -> dict:
 
 
 @router.get("/{draft_id}")
-def draft_page(draft_id: int, conn: sqlite3.Connection = Depends(get_conn)):
-    row = conn.execute("SELECT generation_id FROM drafts WHERE id = ?", (draft_id,)).fetchone()
+def draft_page(draft_id: int, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
+    row = conn.execute("SELECT generation_id, title FROM drafts WHERE id = ?", (draft_id,)).fetchone()
     if not row:
         raise HTTPException(404, "No such draft")
+    if row["generation_id"] is None:  # built by Discover, not by a prompt
+        return templates.TemplateResponse(request, "draft_page.html", {"draft_id": draft_id, "title": row["title"]})
     return RedirectResponse(f"/generate/{row['generation_id']}#draft", status_code=302)
 
 

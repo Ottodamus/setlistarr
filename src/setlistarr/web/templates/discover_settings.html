@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Discover settings{% endblock %}
+{% block heading %}Discover settings{% endblock %}
+{% macro field(k, type=None) %}
+  {% set x = f[k] %}
+  <div class="form-row"><label for="{{ k }}">{{ x.label }}</label>
+    <div>
+      {% if x.choices %}
+        <select id="{{ k }}" name="{{ k }}" {{ 'disabled' if x.source == 'env' }}>
+          {% for v, label in x.choices %}<option value="{{ v }}" {{ 'selected' if x.value == v }}>{{ label }}</option>{% endfor %}
+        </select>
+      {% elif x.kind == 'bool' %}
+        <input type="checkbox" id="{{ k }}" name="{{ k }}" {{ 'checked' if x.value }} {{ 'disabled' if x.source == 'env' }}>
+      {% elif x.secret %}
+        <input type="password" id="{{ k }}" name="{{ k }}" autocomplete="off" {{ 'disabled' if x.source == 'env' }}
+               placeholder="{{ '•••••••• (set - leave blank to keep)' if x.is_set else 'not set' }}">
+      {% else %}
+        <input type="{{ 'number' if x.kind == 'int' else 'text' }}" id="{{ k }}" name="{{ k }}" value="{{ x.value }}" {{ 'disabled' if x.source == 'env' }}>
+      {% endif %}
+      {% if x.source == 'env' %}<span class="badge env">set by ${{ x.env }}</span>{% endif %}
+      {% if x.help %}<div class="help">{{ x.help }}</div>{% endif %}
+    </div></div>
+{% endmacro %}
+{% block content %}
+{% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
+<form method="post" action="/settings/discover" id="discover-form">
+
+  <div class="card">
+    <h2>Recommendations</h2>
+    {{ field('discover_source') }}
+    {{ field('discover_per_run') }}
+    {{ field('discover_auto_approve') }}
+    <details class="cover-info" style="margin-top:0">
+      <summary>ⓘ How the two sources differ</summary>
+      <ul>
+        <li><b>Last.fm similar artists</b> - for the artists you play most, Last.fm lists similar artists; ones you don't own are
+          ranked by how many of your artists point to them. Predictable, "more like what I love". Needs the Last.fm API key
+          (Settings → Enrichment) and one <i>Enrich tags</i> run.</li>
+        <li><b>ListenBrainz recommendations</b> - personal recommendations from your actual listening (like Spotify's), refreshed
+          by ListenBrainz about weekly. Needs a token below, and a few weeks of plays sent to ListenBrainz before the first ones appear.</li>
+        <li>Approving sends the artist to Lidarr with <b>only its most popular album</b> monitored and searched - no whole discographies,
+          no future releases. With auto-approve off (the default) nothing is downloaded until you approve it on the Discover page.</li>
+      </ul>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Discover playlist</h2>
+    {{ field('discover_cadence') }}
+    {{ field('discover_playlist_title') }}
+    {{ field('discover_minutes') }}
+    {{ field('discover_window_weeks') }}
+    {{ field('discover_cover_mode') }}
+    <div class="form-row"><label for="discover_cover_provider_id">Cover provider</label>
+      <div><select id="discover_cover_provider_id" name="discover_cover_provider_id">
+        <option value="">Image model if configured, otherwise the default provider</option>
+        {% for p in cover_providers %}<option value="{{ p.id }}" {{ 'selected' if f.discover_cover_provider_id.value == p.id }}>{{ p.label }} ({{ 'artwork' if p.method == 'image' else 'designed art' }})</option>{% endfor %}
+      </select>
+      <div class="help">The playlist is created and then replaced in place on each run. It holds tracks by discovered artists that
+        arrived recently, topped up with unplayed tracks from your library that match what you play most. "Keep one cover"
+        keeps whatever cover the latest Discover draft has (change it there).</div></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Lidarr</h2>
+    {{ field('lidarr_url') }}
+    {{ field('lidarr_api_key') }}
+    <div class="form-row"><span></span>
+      <div><button type="button" class="btn" hx-post="/settings/discover/lidarr-test" hx-include="#discover-form"
+                   hx-target="#lidarr-test" hx-indicator="#lidarr-spin">Test connection &amp; load folders</button>
+        <span id="lidarr-spin" class="spin"></span></div></div>
+    <div id="lidarr-test">
+      {% if f.lidarr_root_folder.value %}
+      <input type="hidden" name="lidarr_root_folder" value="{{ f.lidarr_root_folder.value }}">
+      <input type="hidden" name="lidarr_quality_profile_id" value="{{ f.lidarr_quality_profile_id.value }}">
+      <input type="hidden" name="lidarr_metadata_profile_id" value="{{ f.lidarr_metadata_profile_id.value }}">
+      <div class="form-row"><span></span><div class="small dim">Root folder <code>{{ f.lidarr_root_folder.value }}</code> ·
+        quality profile #{{ f.lidarr_quality_profile_id.value }} · metadata profile #{{ f.lidarr_metadata_profile_id.value }}.
+        Test the connection to change them.</div></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>ListenBrainz</h2>
+    {{ field('listenbrainz_token') }}
+    <div class="form-row"><span></span>
+      <div><button type="button" class="btn" hx-post="/settings/discover/listenbrainz-test" hx-include="#discover-form"
+                   hx-target="#lb-test">Test token</button>
+        <div id="lb-test" style="margin-top:8px">{% if lb_user %}<span class="badge ok">connected as {{ lb_user }}</span>{% endif %}</div></div></div>
+    {{ field('scrobble_enabled') }}
+    <div class="form-row"><label for="scrobble_plex_account_id">Plex account to send</label>
+      <div>
+        {% if accounts %}
+        <select id="scrobble_plex_account_id" name="scrobble_plex_account_id">
+          {% for id, name in accounts %}<option value="{{ id }}" {{ 'selected' if f.scrobble_plex_account_id.value == id }}>{{ name }}{% if id == 1 %} (server owner){% endif %}</option>{% endfor %}
+        </select>
+        {% else %}<input type="number" id="scrobble_plex_account_id" name="scrobble_plex_account_id" value="{{ f.scrobble_plex_account_id.value }}">{% endif %}
+        <div class="help">Only this account's music plays are sent, after each library sync. The first time, all the history
+          Plex has kept for it is sent. Don't also run another ListenBrainz scrobbler for Plex, or plays are counted twice.</div>
+      </div></div>
+  </div>
+
+  <button class="btn primary" type="submit">Save</button>
+</form>
+{% endblock %}

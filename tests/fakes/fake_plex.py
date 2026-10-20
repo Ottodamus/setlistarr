@@ -24,7 +24,8 @@ class FakePlex:
     playlists: dict[str, dict] = field(default_factory=dict)
     log: list[str] = field(default_factory=list)
     bulk_clear: bool = True
-    posters: dict[str, list[bytes]] = field(default_factory=dict)  # playlist ratingKey -> uploaded images  # False = server without DELETE /playlists/{id}/items
+    posters: dict[str, list[bytes]] = field(default_factory=dict)  # playlist ratingKey -> uploaded images
+    history: list[dict] = field(default_factory=list)  # /status/sessions/history/all rows  # False = server without DELETE /playlists/{id}/items
     now: int = 1_700_000_000
     _next_key: int = 9000
     _next_item: int = 5000
@@ -123,6 +124,19 @@ class FakePlex:
             keys = m.group(1).split(",")
             return self._json({"Metadata": [self._public(self.items[k], True) for k in keys if k in self.items]})
 
+        if path == "/status/sessions/history/all":
+            rows = [h for h in self.history if str(h["librarySectionID"]) == req.args.get("librarySectionID", str(h["librarySectionID"]))
+                    and str(h["accountID"]) == req.args.get("accountID", str(h["accountID"]))]
+            if req.args.get("viewedAt>") is not None:
+                rows = [h for h in rows if h["viewedAt"] > int(req.args["viewedAt>"])]
+            rows.sort(key=lambda h: h["viewedAt"], reverse=req.args.get("sort", "").endswith("desc"))
+            start = int(req.args.get("X-Plex-Container-Start", 0))
+            size = int(req.args.get("X-Plex-Container-Size", 100))
+            return self._json({"size": len(rows[start:start + size]), "totalSize": len(rows), "Metadata": rows[start:start + size]})
+
+        if path == "/accounts":
+            return self._json({"Account": [{"id": 1, "name": "owner"}, {"id": 2, "name": "kid"}]})
+
         if path == "/playlists" and req.method == "GET":
             return self._json({"Metadata": [
                 {"ratingKey": pl["ratingKey"], "title": pl["title"], "smart": int(pl.get("smart", 0)),
@@ -181,6 +195,12 @@ class FakePlex:
                 return Response("", 200)
 
         return Response("not found", 404)
+
+    def play_history(self, key: str, viewed_at: int, account_id: int = 1, section: int = 1) -> None:
+        t = self.items[str(key)]
+        self.history.append({"ratingKey": str(key), "title": t["title"], "grandparentTitle": t["grandparentTitle"],
+                             "parentTitle": t["parentTitle"], "index": t["index"], "type": "track",
+                             "viewedAt": viewed_at, "accountID": account_id, "librarySectionID": str(section)})
 
     def add_user_playlist(self, key: str, title: str, track_keys: list[str], smart: bool = False) -> None:
         """A playlist the user made in Plex (Setlistarr doesn't manage it)."""

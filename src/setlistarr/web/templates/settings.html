@@ -3,6 +3,7 @@
 {% block heading %}Settings{% endblock %}
 {% block content %}
 {% if saved %}<div class="alert alert-ok">Saved.</div>{% endif %}
+<div class="alert small">Lidarr, ListenBrainz and the Discover playlist are set up under <a href="/settings/discover">Discover settings</a>.</div>
 
 <form method="post" action="/settings" id="settings-form">
   {% for group, fields in groups %}

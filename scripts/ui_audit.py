@@ -57,6 +57,15 @@ for pk, title in [("901", "Road Trip Mix"), ("902", "Late Night Coding Session D
     conn.execute("INSERT INTO plex_playlists(rating_key, title, synced_at) VALUES(?, ?, datetime('now'))", (pk, title))
     conn.executemany("INSERT INTO playlist_tracks(playlist_key, position, plex_key) VALUES(?,?,?)",
                      [(pk, j, str(1000 + i)) for j, i in enumerate(range(int(pk) - 901, 40, 2))])
+for i, (name, status, why) in enumerate([
+        ("Cocteau Twins", "suggested", ["A Very Long Artist Name That Keeps Going", "ABBA", "Bring Me the Horizon & Kanisan"]),
+        ("The Brian Jonestown Massacre Featuring A Long Guest List", "suggested", ["ABBA"]),
+        ("Ride", "requested", []), ("Slowdive", "arrived", []), ("Unknown Artist", "failed", [])]):
+    conn.execute("INSERT INTO discoveries(ident, artist_name, artist_mbid, source, score, reasons_json, status, album_title, "
+                 "note, first_seen_at, updated_at, requested_at) VALUES(?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'),datetime('now'))",
+                 (f"mbid-{i}", name, f"mbid-{i}", "lastfm", 3.2 - i, json.dumps(why), status,
+                  "Nowhere (Remastered Deluxe Edition)" if status != "suggested" else None,
+                  "Couldn't identify this artist on MusicBrainz, so Lidarr can't add it" if status == "failed" else "Album chosen by Last.fm top album"))
 conn.commit()
 save_provider(conn, ProviderConfig(id=None, name="llama3.1:8b", kind="ollama", model="llama3.1:8b",
                                    base_url="http://192.168.1.20:11434", tool_mode="two_stage", is_default=True))
@@ -91,7 +100,7 @@ threading.Thread(target=server.run, daemon=True).start()
 while not server.started:
     time.sleep(0.1)
 
-PAGES = ["/", "/library?playlist=902", "/generate", f"/generate/{gid}", "/library", "/library/artists", "/stats", "/history", "/recipes",
+PAGES = ["/", "/discover", "/settings/discover", "/library?playlist=902", "/generate", f"/generate/{gid}", "/library", "/library/artists", "/stats", "/history", "/recipes",
          "/recipes/new", f"/recipes/{rid}", "/settings", "/settings/providers", "/settings/providers/3", "/system", "/login"]
 WIDTHS = [1440, 1280, 1100, 1000, 900, 800, 760, 600, 390]
 

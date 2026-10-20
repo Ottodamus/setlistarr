@@ -1,0 +1,17 @@
+{% if ok %}
+<div class="alert alert-ok">Connected to Lidarr {{ version }}. URL and API key saved - pick where new music goes, then <b>Save</b>.</div>
+<div class="form-row"><label for="lidarr_root_folder">Root folder</label>
+  <div><select id="lidarr_root_folder" name="lidarr_root_folder">
+    {% for r in roots %}<option value="{{ r.path }}" {{ 'selected' if s.lidarr_root_folder == r.path }}>{{ r.path }}{% if r.freeSpace %} · {{ (r.freeSpace / 1e9)|round|int }} GB free{% endif %}</option>{% endfor %}
+  </select>{% if not roots %}<div class="help" style="color:var(--warn)">Lidarr has no root folders - add one in Lidarr → Settings → Media Management.</div>{% endif %}</div></div>
+<div class="form-row"><label for="lidarr_quality_profile_id">Quality profile</label>
+  <div><select id="lidarr_quality_profile_id" name="lidarr_quality_profile_id">
+    {% for q in qps %}<option value="{{ q.id }}" {{ 'selected' if s.lidarr_quality_profile_id == q.id }}>{{ q.name }}</option>{% endfor %}
+  </select></div></div>
+<div class="form-row"><label for="lidarr_metadata_profile_id">Metadata profile</label>
+  <div><select id="lidarr_metadata_profile_id" name="lidarr_metadata_profile_id">
+    {% for m in mps %}<option value="{{ m.id }}" {{ 'selected' if s.lidarr_metadata_profile_id == m.id }}>{{ m.name }}</option>{% endfor %}
+  </select></div></div>
+{% else %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}

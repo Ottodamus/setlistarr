@@ -1,0 +1,254 @@
+import json
+
+import pytest
+from fastapi.testclient import TestClient
+from pytest_httpserver import HTTPServer
+
+from setlistarr.config import Settings
+from setlistarr.core import enrich as enrich_mod
+from setlistarr.core.db import get_meta
+from setlistarr.core.lidarr import LidarrClient
+from setlistarr.core.listenbrainz import ListenBrainzClient
+from setlistarr.core.plex.client import PlexClient
+from setlistarr.core.plex.sync import sync_all
+from setlistarr.services import discover as svc
+from setlistarr.services import scrobble as scrobble_svc
+from setlistarr.web.app import create_app
+
+from .fakes.fake_plex import TOKEN
+from .fakes.fake_services import LB_TOKEN, LIDARR_KEY, FakeServices
+
+RIDE, BREEDERS, COCTEAU = "mbid-ride", "mbid-breeders", "mbid-cocteau"
+
+
+@pytest.fixture
+def fs(monkeypatch):
+    server = HTTPServer()
+    server.start()
+    f = FakeServices()
+    f.url = f.install(server)
+    monkeypatch.setattr(svc, "MB_ROOT", f.url + "/ws/2/")
+    monkeypatch.setattr(svc, "LASTFM_ROOT", f.url + "/2.0/")
+    monkeypatch.setattr(enrich_mod.time, "sleep", lambda s: None)  # MusicBrainz rate limit
+    yield f
+    server.clear()
+    server.stop()
+
+
+@pytest.fixture
+def lib(conn, plex, configured, fs):
+    sync_all(conn, plex, full=True)
+    # Last.fm similar-artist data as enrichment stores it (includes artists you DON'T own)
+    sim = [("1", "Ride", RIDE, 0.9), ("1", "Cocteau Twins", None, 0.8), ("1", "Pixies", None, 0.5),
+           ("2", "Ride", RIDE, 0.4), ("2", "The Breeders", BREEDERS, 0.9)]
+    conn.executemany("INSERT INTO artist_similar(artist_key, similar_name, similar_mbid, score) VALUES(?,?,?,?)", sim)
+    conn.commit()
+    s = Settings(conn)
+    for k, v in {"lidarr_url": fs.url, "lidarr_api_key": LIDARR_KEY, "lidarr_root_folder": "/music",
+                 "lidarr_quality_profile_id": 2, "lidarr_metadata_profile_id": 1}.items():
+        s.set(k, v)
+    return conn
+
+
+def lidarr(fs):
+    return LidarrClient(fs.url, LIDARR_KEY)
+
+
+def lb(fs, token=LB_TOKEN):
+    return ListenBrainzClient(token, base_url=fs.url)
+
+
+# ------------------------------------------------------------------- candidates
+def test_lastfm_candidates_rank_outsiders_by_your_taste(lib):
+    cands = svc.candidates_lastfm(lib)
+    names = [c["name"] for c in cands]
+    assert "Pixies" not in names  # owned
+    assert names[0] == "Ride"  # pointed at by both of your artists
+    ride = cands[0]
+    assert ride["mbid"] == RIDE and set(ride["reasons"]) == {"Slowdive", "Pixies"}
+    assert {"The Breeders", "Cocteau Twins"} <= set(names)
+
+
+def test_lastfm_without_data_explains_what_to_do(conn):
+    with pytest.raises(svc.DiscoverError, match="Last.fm API key"):
+        svc.candidates_lastfm(conn)
+
+
+def test_refresh_caps_new_and_never_resuggests_dismissed(lib):
+    cands = svc.candidates_lastfm(lib)
+    assert svc.refresh(lib, cands, per_run=2) == 2
+    ride = lib.execute("SELECT id FROM discoveries WHERE artist_name='Ride'").fetchone()[0]
+    svc.dismiss(lib, ride)
+    assert svc.refresh(lib, cands, per_run=5) == 1  # the 3rd one; Ride stays dismissed
+    assert lib.execute("SELECT status FROM discoveries WHERE id=?", (ride,)).fetchone()[0] == "dismissed"
+    svc.dismiss(lib, ride, undo=True)
+    assert lib.execute("SELECT status FROM discoveries WHERE id=?", (ride,)).fetchone()[0] == "suggested"
+
+
+def test_listenbrainz_candidates_group_recordings_by_artist(lib, fs):
+    fs.lb_recs = [{"recording_mbid": "r1", "score": 2.0}, {"recording_mbid": "r2", "score": 1.0},
+                  {"recording_mbid": "r3", "score": 5.0}]
+    fs.lb_meta = {"r1": {"recording": {"name": "Vapour Trail"}, "artist": {"artists": [{"artist_mbid": RIDE, "name": "Ride"}]}},
+                  "r2": {"recording": {"name": "Leave Them All Behind"}, "artist": {"artists": [{"artist_mbid": RIDE, "name": "Ride"}]}},
+                  "r3": {"recording": {"name": "Debaser"}, "artist": {"artists": [{"artist_mbid": "x", "name": "Pixies"}]}}}
+    cands = svc.candidates_listenbrainz(lib, lb(fs, token=None), "lbuser")
+    assert [(c["name"], c["score"], c["reasons"]) for c in cands] == [("Ride", 3.0, ["Vapour Trail", "Leave Them All Behind"])]
+    fs.lb_recs = []
+    with pytest.raises(svc.DiscoverError, match="few weeks"):
+        svc.candidates_listenbrainz(lib, lb(fs, token=None), "lbuser")
+
+
+# ---------------------------------------------------------------------- Lidarr
+def test_request_adds_artist_with_only_its_most_popular_album(lib, fs):
+    fs.add_catalog_artist(RIDE, "Ride")
+    fs.lb_popular[RIDE] = [{"release_group_mbid": "rg-nowhere", "release_group": {"name": "Nowhere", "type": "Album"}},
+                           {"release_group_mbid": "rg-going", "release_group": {"name": "Going Blank Again", "type": "Album"}}]
+    svc.refresh(lib, svc.candidates_lastfm(lib), per_run=5)
+    did = lib.execute("SELECT id FROM discoveries WHERE artist_name='Ride'").fetchone()[0]
+    [res] = svc.request(lib, [did], lidarr=lidarr(fs), lb=lb(fs))
+    assert res["status"] == "requested" and res["album_title"] == "Nowhere"
+    body = fs.lidarr_added[0]
+    assert body["foreignArtistId"] == RIDE and body["rootFolderPath"] == "/music"
+    assert (body["qualityProfileId"], body["metadataProfileId"], body["monitored"]) == (2, 1, True)
+    assert body["monitorNewItems"] == "none"  # no future releases
+    assert body["addOptions"] == {"monitor": "unknown", "albumsToMonitor": ["rg-nowhere"], "monitored": True,
+                                  "searchForMissingAlbums": True}
+    row = lib.execute("SELECT * FROM discoveries WHERE id=?", (did,)).fetchone()
+    assert row["lidarr_artist_id"] == 100 and row["album_mbid"] == "rg-nowhere" and row["requested_at"]
+
+
+def test_popular_album_falls_back_to_lastfm_and_musicbrainz_without_lb_token(lib, fs):
+    Settings(lib).set("lastfm_api_key", "lfm-key")
+    fs.add_catalog_artist(BREEDERS, "The Breeders")
+    fs.lastfm_top_albums["the breeders"] = ["Last Splash"]
+    fs.mb_release_groups[("last splash", BREEDERS)] = "rg-last-splash"
+    svc.refresh(lib, svc.candidates_lastfm(lib), per_run=5)
+    did = lib.execute("SELECT id FROM discoveries WHERE artist_name='The Breeders'").fetchone()[0]
+    [res] = svc.request(lib, [did], lidarr=lidarr(fs), lb=None)
+    assert res["album_mbid"] == "rg-last-splash" and "Last.fm top album" in res["note"]
+    assert fs.lidarr_added[0]["addOptions"]["albumsToMonitor"] == ["rg-last-splash"]
+
+
+def test_request_edge_cases(lib, fs):
+    svc.refresh(lib, svc.candidates_lastfm(lib), per_run=5)
+    ids = {r["artist_name"]: r["id"] for r in lib.execute("SELECT id, artist_name FROM discoveries")}
+    # no MBID and MusicBrainz doesn't know them -> failed, explained
+    [cocteau] = svc.request(lib, [ids["Cocteau Twins"]], lidarr=lidarr(fs))
+    assert cocteau["status"] == "failed" and "MusicBrainz" in cocteau["note"]
+    # Lidarr's metadata doesn't have Ride yet -> failed; once it does, Retry works.
+    # No popularity data available -> Lidarr's 'latest' option instead of a specific album.
+    [ride] = svc.request(lib, [ids["Ride"]], lidarr=lidarr(fs))
+    assert ride["status"] == "failed" and "Lidarr couldn't find" in ride["note"]
+    fs.add_catalog_artist(RIDE, "Ride")
+    [retry] = svc.request(lib, [ids["Ride"]], lidarr=lidarr(fs))
+    assert retry["status"] == "requested" and fs.lidarr_added[-1]["addOptions"]["monitor"] == "latest"
+    assert fs.lidarr_added[-1]["addOptions"]["albumsToMonitor"] == []
+    # already in Lidarr -> requested without adding again
+    fs.lidarr_artists.append({"id": 7, "foreignArtistId": BREEDERS, "artistName": "The Breeders"})
+    [b] = svc.request(lib, [ids["The Breeders"]], lidarr=lidarr(fs))
+    assert b["status"] == "requested" and b["note"] == "Already in Lidarr" and len(fs.lidarr_added) == 1
+
+
+def test_nothing_is_sent_without_approval_unless_auto_approve(lib, fs, plex):
+    fs.add_catalog_artist(RIDE, "Ride")
+    fs.add_catalog_artist(BREEDERS, "The Breeders")
+    res = svc.run(lib, "test", build=False, inject={"lidarr": lidarr(fs)})
+    assert res["new_suggestions"] == 3 and fs.lidarr_added == [] and "sent_to_lidarr" not in res
+    Settings(lib).set("discover_auto_approve", True)
+    res = svc.run(lib, "test", build=False, inject={"lidarr": lidarr(fs)})
+    assert res["sent_to_lidarr"] == 2 and res["failed"] == 1  # Cocteau Twins can't be identified
+
+
+# ------------------------------------------------------------ arrival + playlist
+def _arrive_ride(lib, fake_plex, plex, fs):
+    fs.add_catalog_artist(RIDE, "Ride")
+    svc.refresh(lib, svc.candidates_lastfm(lib), per_run=5)
+    did = lib.execute("SELECT id FROM discoveries WHERE artist_name='Ride'").fetchone()[0]
+    svc.request(lib, [did], lidarr=lidarr(fs))
+    # Lidarr downloaded Nowhere; Plex picked it up
+    fake_plex.add_artist(3, "Ride", genres=["Rock"], styles=["Shoegaze"])
+    fake_plex.add_album(30, 3, "Nowhere", 1990)
+    for i, t in enumerate(["Seagull", "Kaleidoscope", "In a Different Place", "Polar Bear"]):
+        fake_plex.add_track(300 + i, 30, t, index=i + 1)
+    sync_all(lib, plex, full=True)
+    return did
+
+
+def test_arrival_and_rolling_playlist_with_top_up(lib, fake_plex, plex, fs):
+    did = _arrive_ride(lib, fake_plex, plex, fs)
+    assert svc.check_arrivals(lib) == 1
+    assert lib.execute("SELECT status FROM discoveries WHERE id=?", (did,)).fetchone()[0] == "arrived"
+    Settings(lib).set("discover_minutes", 20)  # 6 tracks of 200s
+    lib.execute("UPDATE tracks SET play_count = 5 WHERE plex_key IN ('100', '102')")  # your favourites
+    lib.commit()
+    first = svc.build_playlist(lib, plex=PlexClient(fake_plex.url, TOKEN))
+    assert first["status"] == "ok" and first["action"] == "created" and first["title"] == "Discover Weekly"
+    assert first["new_tracks"] == 3  # max 3 per arrived artist
+    keys = fake_plex.playlists[first_key := get_meta(lib, "discover_playlist_key")]["_keys"]
+    assert {"300", "301", "302"} <= set(keys)  # Ride, the album Lidarr fetched
+    assert "100" not in keys and "102" not in keys  # top-up is never-played tracks only
+    assert len(keys) > 3  # topped up from the library
+    second = svc.build_playlist(lib, plex=PlexClient(fake_plex.url, TOKEN))
+    assert second["action"] == "replaced" and get_meta(lib, "discover_playlist_key") == first_key
+
+
+def test_playlist_title_follows_cadence(lib):
+    s = Settings(lib)
+    s.set("discover_cadence", "monthly")
+    assert svc.playlist_title(s) == "Discover Monthly"
+    s.set("discover_playlist_title", "New For Me")
+    assert svc.playlist_title(s) == "New For Me"
+
+
+# ------------------------------------------------------------------- scrobbling
+def test_scrobble_sends_only_your_account_once(lib, fake_plex, plex, fs):
+    fake_plex.play_history("100", 1_700_000_100)              # you
+    fake_plex.play_history("102", 1_700_000_200)              # you
+    fake_plex.play_history("105", 1_700_000_300, account_id=2)  # someone else on your server
+    assert scrobble_svc.scrobble(lib, plex, lb=lb(fs)) is None  # off by default
+    Settings(lib).set("scrobble_enabled", True)
+    Settings(lib).set("listenbrainz_token", LB_TOKEN)
+    assert scrobble_svc.scrobble(lib, plex, lb=lb(fs)) == {"sent": 2}
+    first = fs.lb_submitted[0]
+    assert first["listened_at"] == 1_700_000_100
+    assert first["track_metadata"]["artist_name"] == "Slowdive" and first["track_metadata"]["track_name"] == "Alison"
+    info = first["track_metadata"]["additional_info"]
+    assert info["duration_ms"] == 200_000 and info["media_player"] == "Plex" and info["submission_client"] == "Setlistarr"
+    assert scrobble_svc.scrobble(lib, plex, lb=lb(fs)) == {"sent": 0}  # watermark: nothing twice
+    fake_plex.play_history("104", 1_700_000_400)
+    assert scrobble_svc.scrobble(lib, plex, lb=lb(fs)) == {"sent": 1} and len(fs.lb_submitted) == 3
+
+
+# ---------------------------------------------------------------------- web UI
+@pytest.fixture
+def client():
+    with TestClient(create_app()) as c:
+        yield c
+
+
+def test_settings_lidarr_test_loads_folders_and_profiles(client, conn, fs):
+    Settings(conn).set("lidarr_url", "")
+    html = client.post("/settings/discover/lidarr-test", data={"lidarr_url": fs.url + "/", "lidarr_api_key": LIDARR_KEY}).text
+    assert "Connected to Lidarr 3.0.0.0" in html and "/music" in html and "Lossless" in html and "Standard" in html
+    assert Settings(conn).get("lidarr_url") == fs.url  # saved, trailing slash stripped
+    bad = client.post("/settings/discover/lidarr-test", data={"lidarr_url": fs.url, "lidarr_api_key": "nope"}).text
+    assert "rejected the API key" in bad
+
+
+def test_discover_page_and_approve_flow(client, lib, fs):
+    fs.add_catalog_artist(RIDE, "Ride")
+    svc.refresh(lib, svc.candidates_lastfm(lib), per_run=5)
+    page = client.get("/discover").text
+    assert "Waiting for your OK" in page and "Because you play" in page and "Ride" in page
+    did = lib.execute("SELECT id FROM discoveries WHERE artist_name='Ride'").fetchone()[0]
+    html = client.post(f"/discover/{did}/approve").text
+    assert "Sent Ride to Lidarr" in html and len(fs.lidarr_added) == 1
+    settings = client.get("/settings/discover").text
+    assert "How the two sources differ" in settings and "Send my Plex plays to ListenBrainz" in settings
+    assert "owner (server owner)" in settings  # Plex accounts listed
+    client.post("/settings/discover", data={"discover_source": "listenbrainz", "discover_cadence": "weekly",
+                                            "discover_per_run": "5", "discover_minutes": "60", "discover_window_weeks": "4",
+                                            "discover_cover_mode": "none", "scrobble_plex_account_id": "1"})
+    s = Settings(lib)
+    assert s.get("discover_source") == "listenbrainz" and s.get("discover_auto_approve") is False
+    assert "periodic-discover" in {j.id for j in client.app.state.scheduler._sched.get_jobs()}

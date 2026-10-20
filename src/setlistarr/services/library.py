@@ -10,6 +10,8 @@ from ..core.enrich import EnrichConfig, enrich
 from ..core.plex.client import client_from_settings
 from ..core.plex.playlist_sync import sync_playlists
 from ..core.plex.sync import LIVE_TRACK_SQL, sync_all
+from .discover import check_arrivals
+from .scrobble import scrobble
 
 
 def do_sync(conn: sqlite3.Connection, *, full: bool) -> dict[str, Any]:
@@ -17,6 +19,19 @@ def do_sync(conn: sqlite3.Connection, *, full: bool) -> dict[str, Any]:
     with client_from_settings(settings) as plex:
         result = sync_all(conn, plex, full=full)
         result["_playlists"] = sync_playlists(conn, plex)
+        # Opt-in extras: never let them fail the sync itself.
+        try:
+            sent = scrobble(conn, plex)
+            if sent is not None:
+                result["_scrobble"] = sent
+        except Exception as e:
+            result["_scrobble"] = {"error": str(e)}
+    try:
+        arrived = check_arrivals(conn)
+        if arrived:
+            result["_discover"] = {"arrived": arrived}
+    except Exception as e:  # pragma: no cover - defensive
+        result["_discover"] = {"error": str(e)}
     if full and settings.get("enrich_after_full_sync"):
         result["_enrich"] = do_enrich(conn)
     return result
