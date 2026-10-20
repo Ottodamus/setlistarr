@@ -123,26 +123,43 @@ def candidates_listenbrainz(conn: sqlite3.Connection, lb: ListenBrainzClient, us
                     "reasons": c["tracks"]} for c in agg.values()), key=lambda c: -c["score"])
 
 
-def refresh(conn: sqlite3.Connection, candidates: list[dict[str, Any]], per_run: int) -> int:
-    """Add up to per_run new suggestions; refresh scores of pending ones. Returns new count."""
-    existing = {r["ident"]: r["status"] for r in conn.execute("SELECT ident, status FROM discoveries")}
+PER_PAGE = 8
+DISMISS_COOLDOWN = timedelta(weeks=4)  # a dismissed artist can be suggested again after this
+
+
+def refresh(conn: sqlite3.Connection, candidates: list[dict[str, Any]], per_run: int, max_waiting: int = 32) -> int:
+    """Add up to per_run new suggestions without going over max_waiting; refresh scores of pending ones.
+    Dismissed artists are eligible again after DISMISS_COOLDOWN; blocked ones never. Returns new count."""
+    existing = {r["ident"]: dict(r) for r in conn.execute("SELECT ident, status, updated_at FROM discoveries")}
+    cooled = (datetime.now(timezone.utc) - DISMISS_COOLDOWN).isoformat()
+    waiting = sum(1 for r in existing.values() if r["status"] == "suggested")
+    room = max(0, min(per_run, max_waiting - waiting))
     new = 0
     with conn:
         for c in candidates:
             ident = ident_for(c["name"], c["mbid"])
-            if ident in existing:
-                if existing[ident] == "suggested":
-                    conn.execute("UPDATE discoveries SET score=?, reasons_json=?, source=?, updated_at=? WHERE ident=?",
-                                 (c["score"], json.dumps(c["reasons"]), c["source"], _now(), ident))
+            row = existing.get(ident)
+            if row and row["status"] == "suggested":
+                conn.execute("UPDATE discoveries SET score=?, reasons_json=?, source=?, updated_at=? WHERE ident=?",
+                             (c["score"], json.dumps(c["reasons"]), c["source"], _now(), ident))
                 continue
-            if new >= per_run:
+            if new >= room or (row and not (row["status"] == "dismissed" and row["updated_at"] < cooled)):
                 continue
-            conn.execute(
-                "INSERT INTO discoveries(ident, artist_name, artist_mbid, source, score, reasons_json, status, "
-                "first_seen_at, updated_at) VALUES(?,?,?,?,?,?, 'suggested', ?, ?)",
-                (ident, c["name"], c["mbid"], c["source"], c["score"], json.dumps(c["reasons"]), _now(), _now()))
-            existing[ident] = "suggested"
+            if row:  # dismissed long enough ago: back on the list
+                conn.execute("UPDATE discoveries SET status='suggested', score=?, reasons_json=?, source=?, note=NULL, "
+                             "first_seen_at=?, updated_at=? WHERE ident=?",
+                             (c["score"], json.dumps(c["reasons"]), c["source"], _now(), _now(), ident))
+            else:
+                conn.execute(
+                    "INSERT INTO discoveries(ident, artist_name, artist_mbid, source, score, reasons_json, status, "
+                    "first_seen_at, updated_at) VALUES(?,?,?,?,?,?, 'suggested', ?, ?)",
+                    (ident, c["name"], c["mbid"], c["source"], c["score"], json.dumps(c["reasons"]), _now(), _now()))
+            existing[ident] = {"status": "suggested"}
             new += 1
+        # over the limit (e.g. it was lowered): the lowest-scored ones are dismissed and can come back later
+        conn.execute("""UPDATE discoveries SET status='dismissed', updated_at=? WHERE id IN (
+                          SELECT id FROM discoveries WHERE status='suggested' ORDER BY score DESC LIMIT -1 OFFSET ?)""",
+                     (_now(), max_waiting))
     return new
 
 
@@ -289,11 +306,21 @@ def resolve_albums(conn: sqlite3.Connection, lb: ListenBrainzClient | None, *, i
     return done
 
 
-def dismiss(conn: sqlite3.Connection, discovery_id: int, undo: bool = False) -> None:
+def dismiss(conn: sqlite3.Connection, discovery_id: int) -> None:
+    """Off the list for now - it may be suggested again after DISMISS_COOLDOWN, freeing a slot meanwhile."""
     with conn:
-        conn.execute("UPDATE discoveries SET status = ?, updated_at = ? WHERE id = ? AND status IN (?, ?)",
-                     ("suggested" if undo else "dismissed", _now(), discovery_id,
-                      *(("dismissed", "dismissed") if undo else ("suggested", "failed"))))
+        conn.execute("UPDATE discoveries SET status='dismissed', updated_at=? WHERE id=? AND status IN ('suggested','failed')",
+                     (_now(), discovery_id))
+
+
+def block(conn: sqlite3.Connection, discovery_id: int, undo: bool = False) -> None:
+    """Never suggest this artist again. Unblocking forgets it entirely, so it can be suggested like any new artist."""
+    with conn:
+        if undo:
+            conn.execute("DELETE FROM discoveries WHERE id=? AND status='blocked'", (discovery_id,))
+        else:
+            conn.execute("UPDATE discoveries SET status='blocked', updated_at=? WHERE id=? "
+                         "AND status IN ('suggested','failed','dismissed')", (_now(), discovery_id))
 
 
 def check_arrivals(conn: sqlite3.Connection) -> int:
@@ -561,7 +588,8 @@ def run(conn: sqlite3.Connection, trigger: str = "manual", *, build: bool = True
                 cands = candidates_listenbrainz(conn, lb or ListenBrainzClient(), s.get("listenbrainz_user"))
             else:
                 cands = candidates_lastfm(conn)
-            stats["new_suggestions"] = refresh(conn, cands, int(s.get("discover_per_run")))
+            stats["new_suggestions"] = refresh(conn, cands, int(s.get("discover_per_run")),
+                                              int(s.get("discover_max_waiting")))
             stats["albums_picked"] = resolve_albums(conn, lb)
         except (DiscoverError, ListenBrainzError) as e:
             stats["suggestions_error"] = str(e)

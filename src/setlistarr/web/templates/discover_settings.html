@@ -30,6 +30,7 @@
     <h2>Recommendations</h2>
     {{ field('discover_source') }}
     {{ field('discover_per_run') }}
+    {{ field('discover_max_waiting') }}
     {{ field('discover_auto_approve') }}
     <details class="cover-info" style="margin-top:0">
       <summary>ⓘ How the two sources differ</summary>
@@ -41,6 +42,7 @@
           by ListenBrainz about weekly. Needs a token below, and a few weeks of plays sent to ListenBrainz before the first ones appear.</li>
         <li>Approving sends the artist to Lidarr with <b>only its most popular album</b> monitored and searched - no whole discographies,
           no future releases. With auto-approve off (the default) nothing is downloaded until you approve it on the Discover page.</li>
+        <li><b>Dismiss</b> takes an artist off the waiting list (it may come back after a month); <b>Block</b> means never again.</li>
       </ul>
     </details>
   </div>

@@ -74,15 +74,55 @@ def test_lastfm_without_data_explains_what_to_do(conn):
         svc.candidates_lastfm(conn)
 
 
-def test_refresh_caps_new_and_never_resuggests_dismissed(lib):
+def _status(conn, did):
+    return conn.execute("SELECT status FROM discoveries WHERE id=?", (did,)).fetchone()[0]
+
+
+def test_dismiss_lets_it_come_back_later_block_never(lib):
     cands = svc.candidates_lastfm(lib)
     assert svc.refresh(lib, cands, per_run=2) == 2
     ride = lib.execute("SELECT id FROM discoveries WHERE artist_name='Ride'").fetchone()[0]
     svc.dismiss(lib, ride)
-    assert svc.refresh(lib, cands, per_run=5) == 1  # the 3rd one; Ride stays dismissed
-    assert lib.execute("SELECT status FROM discoveries WHERE id=?", (ride,)).fetchone()[0] == "dismissed"
-    svc.dismiss(lib, ride, undo=True)
-    assert lib.execute("SELECT status FROM discoveries WHERE id=?", (ride,)).fetchone()[0] == "suggested"
+    assert svc.refresh(lib, cands, per_run=5) == 1  # the 3rd one; Ride was dismissed just now
+    assert _status(lib, ride) == "dismissed"
+    lib.execute("UPDATE discoveries SET updated_at='2020-01-01T00:00:00+00:00' WHERE id=?", (ride,))  # a month+ later
+    lib.commit()
+    assert svc.refresh(lib, cands, per_run=5) == 1 and _status(lib, ride) == "suggested"  # back on the list
+    svc.block(lib, ride)
+    lib.execute("UPDATE discoveries SET updated_at='2020-01-01T00:00:00+00:00' WHERE id=?", (ride,))
+    lib.commit()
+    assert svc.refresh(lib, cands, per_run=5) == 0 and _status(lib, ride) == "blocked"  # never comes back
+    svc.block(lib, ride, undo=True)  # unblock = forgotten, so it's a new candidate again
+    assert svc.refresh(lib, cands, per_run=5) == 1
+    assert lib.execute("SELECT status FROM discoveries WHERE artist_name='Ride'").fetchone()[0] == "suggested"
+
+
+def test_waiting_list_is_capped(lib):
+    cands = [{"name": f"Artist {i}", "mbid": None, "score": 100 - i, "reasons": [], "source": "lastfm"} for i in range(40)]
+    assert svc.refresh(lib, cands, per_run=8, max_waiting=12) == 8
+    assert svc.refresh(lib, cands, per_run=8, max_waiting=12) == 4  # only room for 4 more
+    assert svc.refresh(lib, cands, per_run=8, max_waiting=12) == 0  # full: nothing added
+    svc.dismiss(lib, lib.execute("SELECT id FROM discoveries WHERE artist_name='Artist 0'").fetchone()[0])
+    assert svc.refresh(lib, cands, per_run=8, max_waiting=12) == 1  # a dismissal frees a slot
+    # limit lowered: the lowest-scored extras are dismissed (they can come back), the best stay
+    svc.refresh(lib, cands, per_run=8, max_waiting=5)
+    waiting = [r[0] for r in lib.execute("SELECT artist_name FROM discoveries WHERE status='suggested' ORDER BY score DESC")]
+    assert waiting == ["Artist 1", "Artist 2", "Artist 3", "Artist 4", "Artist 5"]
+
+
+def test_block_migration_keeps_old_dismissals_permanent(tmp_path, monkeypatch):
+    from setlistarr.core import db
+    conn = db.connect(tmp_path / "old.db")
+    every = db._migrations()
+    monkeypatch.setattr(db, "_migrations", lambda: [m for m in every if m[0] <= 10])
+    db.migrate(conn)  # an install from before Block existed
+    monkeypatch.setattr(db, "_migrations", lambda: every)
+    migrate = db.migrate
+    conn.execute("INSERT INTO discoveries(ident, artist_name, source, status, first_seen_at, updated_at) "
+                 "VALUES('x', 'X', 'lastfm', 'dismissed', 'now', 'now')")
+    conn.commit()
+    migrate(conn)
+    assert conn.execute("SELECT status FROM discoveries").fetchone()[0] == "blocked"
 
 
 def test_listenbrainz_candidates_group_recordings_by_artist(lib, fs):
@@ -322,6 +362,23 @@ def test_unidentified_artist_is_flagged_before_approval(lib, fs):
     svc.resolve_albums(lib, None)
     row = lib.execute("SELECT * FROM discoveries WHERE artist_name='Cocteau Twins'").fetchone()
     assert row["album_checked_at"] and row["album_title"] is None and "not found on MusicBrainz" in row["album_how"]
+
+
+def test_waiting_list_pages_of_8_and_block_buttons(client, lib):
+    cands = [{"name": f"Artist {i:02d}", "mbid": None, "score": 100 - i, "reasons": ["ABBA"], "source": "lastfm"}
+             for i in range(40)]
+    svc.refresh(lib, cands, per_run=40, max_waiting=32)
+    page1 = client.get("/discover").text
+    assert "Artist 00" in page1 and "Artist 07" in page1 and "Artist 08" not in page1
+    assert "32 of 32" in page1 and "The list is full" in page1 and 'hx-get="/discover/lists?page=4"' in page1
+    page4 = client.get("/discover/lists?page=4").text
+    assert "Artist 24" in page4 and "Artist 31" in page4 and "Artist 23" not in page4
+    assert client.get("/discover/lists?page=9").text.count("Artist ") >= 8  # clamped to the last page
+    did = lib.execute("SELECT id FROM discoveries WHERE artist_name='Artist 25'").fetchone()[0]
+    html = client.post(f"/discover/{did}/block?page=4").text
+    assert "Blocked" in html and "Unblock" in html and 'aria-current="page">4' in html  # stays on page 4
+    html = client.post(f"/discover/{did}/unblock?page=4").text
+    assert lib.execute("SELECT COUNT(*) FROM discoveries WHERE id=?", (did,)).fetchone()[0] == 0
 
 
 def test_discover_sync_now_button(client, lib, monkeypatch):

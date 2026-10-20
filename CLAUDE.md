@@ -39,7 +39,7 @@ git-ignored - never in this file.
 - **Single uvicorn worker.** The scheduler is in-process; more workers = duplicate jobs.
 - **Library-writing jobs go through `services.jobs.run_job`** (shared lock + `jobs` row).
 - **DB: raw `sqlite3`, no ORM.** Schema changes = new `core/migrations/NNNN_name.sql`, tracked by
-  `PRAGMA user_version`. Never edit a migration that has shipped (0001-0009 have now shipped).
+  `PRAGMA user_version`. Never edit a migration that has shipped (0001-0010 have now shipped).
 - **No python-plexapi.** Its partial objects silently reload per item when an attribute is None
   (N+1 requests during sync). Use `core/plex/client.PlexClient` (httpx, JSON). When adding a new
   Plex endpoint, check python-plexapi's source for the exact request shape first, don't guess.
@@ -63,6 +63,8 @@ git-ignored - never in this file.
   `monitorNewItems: "none"`. The Discover playlist is its own managed playlist (key in `sync_meta`),
   never an existing one. Songs the user picked for an arrived artist (`discover_picks`, `set_picks`) replace
   the automatic 3, are never trimmed, and are applied to the live playlist in place (rest + cover unchanged).
+  The waiting list is capped (`discover_max_waiting`, 8 per page); Dismiss = off the list, may return after
+  `DISMISS_COOLDOWN`; Block = never again (status `blocked`).
   ListenBrainz popularity needs a token since 2026; recommendations/metadata don't.
 - **Scrobbling** (`services/scrobble.py`) is opt-in and sends ONE Plex account's plays (`accountID`
   filter), watermarked so nothing is sent twice. Runs after each sync and must never fail the sync.

@@ -233,6 +233,10 @@ approve it.
 - **Discover playlist**: *Off* (manual), *Discover Weekly* (Mondays 6:00) or *Discover Monthly* (the 1st, 6:00).
 - **Send new picks to Lidarr automatically**: **off by default** - nothing is downloaded until you click
   *Approve* on the Discover page. Turn it on to send every new pick straight to Lidarr.
+- **Most artists waiting for your OK** (default **32**, shown 8 per page - a month of weekly runs at 8 each):
+  when the list is full, runs stop adding new artists until you approve, dismiss or block some.
+  **Dismiss** takes an artist off the list for now (it may be suggested again after a month);
+  **Block** means never suggest it again (undo it under *Blocked*).
 - **New artists per run**, **playlist length**, **arrivals window** (how many weeks of new music the
   playlist includes) and the **playlist cover** (don't touch / keep one / new AI cover every run).
 
@@ -341,7 +345,7 @@ broken (Docker's health check uses it). Signed-in users get DB, Plex and schedul
 | A playlist is too short ("min short of the target") | Your library has too few matching tracks; loosen the prompt or constraints. |
 | Small local model picks odd tracks | Use two-stage mode, a bigger model, or Claude/ChatGPT for important playlists. |
 | *Enrich tags* shows "skipped" | Another library job was running; start it again when it's done. |
-| Discover: "Couldn't identify this artist on MusicBrainz" | The name didn't match a MusicBrainz artist closely enough; dismiss it, or add the artist in Lidarr yourself. |
+| Discover: "Couldn't identify this artist on MusicBrainz" | The name didn't match a MusicBrainz artist closely enough; block it, or add the artist in Lidarr yourself. |
 | Discover: ListenBrainz "no recommendations yet" | Keep *Send my Plex plays* on; ListenBrainz needs a few weeks of history. Use the Last.fm source meanwhile. |
 | Discover: an artist stays in "Sent to Lidarr" | Lidarr hasn't downloaded it yet, or Plex hasn't picked it up - check Lidarr's queue, then click **Pick songs** next to an artist under *Arrived in Plex* lets you choose which of their songs go into the
 playlist. Saving updates it in Plex straight away (the rest of the playlist and its cover stay as they are),

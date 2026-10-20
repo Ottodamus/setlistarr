@@ -60,7 +60,8 @@ for pk, title in [("901", "Road Trip Mix"), ("902", "Late Night Coding Session D
 for i, (name, status, why) in enumerate([
         ("Cocteau Twins", "suggested", ["A Very Long Artist Name That Keeps Going", "ABBA", "Bring Me the Horizon & Kanisan"]),
         ("The Brian Jonestown Massacre Featuring A Long Guest List", "suggested", ["ABBA"]),
-        ("Ride", "requested", []), ("ABBA", "arrived", []), ("Unknown Artist", "failed", [])]):
+        ("Ride", "requested", []), ("ABBA", "arrived", []), ("Unknown Artist", "failed", []), ("Nickelback", "blocked", []),
+        *((f"Filler Artist {n}", "suggested", ["ABBA"]) for n in range(12))]):
     conn.execute("INSERT INTO discoveries(ident, artist_name, artist_mbid, source, score, reasons_json, status, album_title, "
                  "album_mbid, album_how, album_checked_at, "
                  "note, first_seen_at, updated_at, requested_at) VALUES(?,?,?,?,?,?,?,?,?,?,datetime('now'),?,datetime('now'),datetime('now'),datetime('now'))",

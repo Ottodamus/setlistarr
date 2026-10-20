@@ -24,7 +24,7 @@
 {% endif %}
 
 <div class="tiles">
-  <div class="tile"><div class="v">{{ suggested|length }}</div><div class="k">Waiting for your OK</div></div>
+  <div class="tile"><div class="v">{{ waiting_total }}</div><div class="k">Waiting for your OK · max {{ max_waiting }}</div></div>
   <div class="tile"><div class="v">{{ requested|length }}</div><div class="k">Sent to Lidarr</div></div>
   <div class="tile"><div class="v">{{ arrived|length }}</div><div class="k">Arrived in Plex · synced {{ last_sync|ago }}</div></div>
   <div class="tile"><div class="v small" style="font-size:15px;padding-top:6px">{{ 'ListenBrainz' if src == 'listenbrainz' else 'Last.fm' }}</div>

@@ -20,7 +20,7 @@ from ..deps import get_conn, templates
 
 router = APIRouter()
 
-SETTINGS_KEYS = ["discover_source", "discover_cadence", "discover_auto_approve", "discover_per_run",
+SETTINGS_KEYS = ["discover_source", "discover_cadence", "discover_auto_approve", "discover_per_run", "discover_max_waiting",
                  "discover_minutes", "discover_window_weeks", "discover_playlist_title", "discover_cover_mode",
                  "discover_cover_provider_id", "lidarr_url", "lidarr_api_key", "lidarr_root_folder",
                  "lidarr_quality_profile_id", "lidarr_metadata_profile_id", "listenbrainz_token",
@@ -37,8 +37,11 @@ def _rows(conn, status: str, limit: int = 200) -> list[dict]:
     return out
 
 
-def _page_ctx(request: Request, conn) -> dict:
+def _page_ctx(request: Request, conn, page: int = 1) -> dict:
     s = Settings(conn)
+    waiting = _rows(conn, "suggested")
+    pages = max(1, -(-len(waiting) // svc.PER_PAGE))
+    page = min(max(1, page), pages)
     runs = [dict(r) for r in conn.execute("SELECT * FROM discover_runs ORDER BY id DESC LIMIT 5")]
     for r in runs:
         r["stats"] = json.loads(r.pop("stats_json") or "{}")
@@ -56,8 +59,10 @@ def _page_ctx(request: Request, conn) -> dict:
                              and s.get("lidarr_quality_profile_id") and s.get("lidarr_metadata_profile_id")),
         "lb_ready": bool(s.get("listenbrainz_token") and s.get("listenbrainz_user")),
         "lastfm_ready": bool(s.get("lastfm_api_key")),
-        "suggested": _rows(conn, "suggested"), "requested": _rows(conn, "requested"),
-        "arrived": arrived, "failed": _rows(conn, "failed"), "dismissed": _rows(conn, "dismissed", 50),
+        "suggested": waiting[(page - 1) * svc.PER_PAGE:page * svc.PER_PAGE], "waiting_total": len(waiting),
+        "page": page, "pages": pages, "max_waiting": s.get("discover_max_waiting"),
+        "requested": _rows(conn, "requested"),
+        "arrived": arrived, "failed": _rows(conn, "failed"), "blocked": _rows(conn, "blocked", 100),
         "runs": runs, "running": any(r["status"] == "running" for r in runs),
         "playlist": dict(playlist) if playlist else None, "playlist_title": svc.playlist_title(s),
         "draft_id": get_meta(conn, "discover_draft_id"), "next_run": nxt,
@@ -68,12 +73,22 @@ def _page_ctx(request: Request, conn) -> dict:
 
 
 @router.get("/discover")
-def discover_page(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
-    return templates.TemplateResponse(request, "discover.html", _page_ctx(request, conn))
+def discover_page(request: Request, page: int = 1, conn: sqlite3.Connection = Depends(get_conn)):
+    return templates.TemplateResponse(request, "discover.html", _page_ctx(request, conn, page))
 
 
 def _lists(request, conn, **extra):
-    return templates.TemplateResponse(request, "partials/discover_lists.html", {**_page_ctx(request, conn), **extra})
+    """The lists partial; keeps the waiting-list page the user was on (?page=N on the action URL)."""
+    try:
+        page = int(request.query_params.get("page", 1))
+    except ValueError:
+        page = 1
+    return templates.TemplateResponse(request, "partials/discover_lists.html", {**_page_ctx(request, conn, page), **extra})
+
+
+@router.get("/discover/lists")
+def lists(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
+    return _lists(request, conn)
 
 
 @router.post("/discover/{discovery_id}/approve")
@@ -108,9 +123,15 @@ def dismiss(discovery_id: int, request: Request, conn: sqlite3.Connection = Depe
     return _lists(request, conn)
 
 
-@router.post("/discover/{discovery_id}/undo")
-def undo(discovery_id: int, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
-    svc.dismiss(conn, discovery_id, undo=True)
+@router.post("/discover/{discovery_id}/block")
+def block(discovery_id: int, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
+    svc.block(conn, discovery_id)
+    return _lists(request, conn)
+
+
+@router.post("/discover/{discovery_id}/unblock")
+def unblock(discovery_id: int, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
+    svc.block(conn, discovery_id, undo=True)
     return _lists(request, conn)
 
 

@@ -129,6 +129,9 @@ SETTING_DEFS: dict[str, SettingDef] = {
                            "popular album is monitored and searched without asking you.",
                    help_off="Off: nothing is sent to Lidarr until you click Approve on the Discover page."),
         SettingDef("discover_per_run", "New artists per run", int, 8),
+        SettingDef("discover_max_waiting", "Most artists waiting for your OK", int, 32,
+                   help="Runs stop adding new artists while this many are waiting; approve, dismiss or block some "
+                        "to make room. Shown 8 per page."),
         SettingDef("discover_minutes", "Playlist length (min)", int, 60),
         SettingDef("discover_window_weeks", "Include arrivals from the last (weeks)", int, 4),
         SettingDef("discover_playlist_title", "Playlist title", str, "",
