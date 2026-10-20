@@ -35,6 +35,7 @@ class FakeServices:
     mb_artists: dict[str, str] = field(default_factory=dict)        # lower name -> mbid
     mb_release_groups: dict[tuple[str, str], str] = field(default_factory=dict)  # (title lower, artist mbid) -> rg id
     lastfm_top_albums: dict[str, list[str]] = field(default_factory=dict)        # artist name lower -> titles
+    lastfm_top_tracks: dict[str, dict[str, int]] = field(default_factory=dict)   # artist name lower -> {title: listeners}
     log: list[str] = field(default_factory=list)
 
     def install(self, server) -> str:
@@ -139,6 +140,10 @@ class FakeServices:
         if req.args.get("method") == "artist.gettopalbums":
             titles = self.lastfm_top_albums.get(req.args.get("artist", "").lower(), [])
             return _json({"topalbums": {"album": [{"name": t, "playcount": 1000 - i} for i, t in enumerate(titles)]}})
+        if req.args.get("method") == "artist.gettoptracks":
+            tracks = self.lastfm_top_tracks.get(req.args.get("artist", "").lower(), {})
+            return _json({"toptracks": {"track": [{"name": t, "listeners": str(n), "playcount": str(n * 9)}
+                                                  for t, n in tracks.items()]}})
         return _json({})
 
     def requests_matching(self, pattern: str) -> list[str]:

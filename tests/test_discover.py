@@ -208,8 +208,9 @@ def _arrive_ride(lib, fake_plex, plex, fs):
     # Lidarr downloaded Nowhere; Plex picked it up
     fake_plex.add_artist(3, "Ride", genres=["Rock"], styles=["Shoegaze"])
     fake_plex.add_album(30, 3, "Nowhere", 1990)
-    for i, t in enumerate(["Seagull", "Kaleidoscope", "In a Different Place", "Polar Bear"]):
-        fake_plex.add_track(300 + i, 30, t, index=i + 1)
+    for i, (t, n) in enumerate([("Seagull", 120_000), ("Kaleidoscope", 310_000), ("In a Different Place", None),
+                                ("Polar Bear", None)]):
+        fake_plex.add_track(300 + i, 30, t, index=i + 1, listeners=n)  # n = Plex ratingCount
     sync_all(lib, plex, full=True)
     return did
 
@@ -276,6 +277,30 @@ def test_pick_songs_from_the_discover_page(client, lib, fake_plex, plex, fs, mon
     keys = fake_plex.playlists[get_meta(lib, "discover_playlist_key")]["_keys"]
     assert {"301", "303"} <= set(keys) and "300" not in keys
     assert "Back to automatic" in client.get(f"/discover/{did}/songs").text
+
+
+def test_title_key_matches_remasters_and_quotes():
+    k = svc._title_key
+    assert k("Seagull (2001 Remaster)") == k("Seagull - Remastered") == k("seagull") == "seagull"
+    assert k("Why’d You Only Call Me") == k("Why'd You Only Call Me")
+    assert k("Live Forever") == "liveforever" and k("Polar Bear [Live at Reading]") == "polarbear"
+
+
+def test_picker_shows_popularity_most_popular_first(client, lib, fake_plex, plex, fs):
+    did = _arrive_ride(lib, fake_plex, plex, fs)
+    svc.check_arrivals(lib)
+    assert lib.execute("SELECT listeners FROM tracks WHERE plex_key='301'").fetchone()[0] == 310_000  # synced
+    Settings(lib).set("lastfm_api_key", "k")
+    fs.lastfm_top_tracks["ride"] = {"Polar Bear (2001 Remaster)": 45_300, "Seagull": 1}  # Plex's count wins for Seagull
+    d = lib.execute("SELECT * FROM discoveries WHERE id=?", (did,)).fetchone()
+    tracks = svc.with_popularity(lib, d, svc.artist_tracks(lib, d))
+    assert [(t["title"], t["listeners"], t["popularity_source"], t["popularity_pct"]) for t in tracks] == [
+        ("Kaleidoscope", 310_000, "Plex", 100), ("Seagull", 120_000, "Plex", 39),
+        ("Polar Bear", 45_300, "Last.fm", 15), ("In a Different Place", None, None, 0)]
+    html = client.get(f"/discover/{did}/songs").text
+    assert "Popularity" in html and "Plays" not in html and "310K" in html and "45K" in html
+    assert html.index("Kaleidoscope") < html.index("Seagull") < html.index("Polar Bear") < html.index("In a Different Place")
+    assert "310,000 listeners on Last.fm (via Plex)" in html and "No popularity yet" not in html
 
 
 def test_playlist_title_follows_cadence(lib):

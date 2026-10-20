@@ -77,6 +77,16 @@ def _num(n) -> str:
     return f"{int(n or 0):,}"
 
 
+def _compact(n) -> str:
+    """1234567 -> '1.2M', 45300 -> '45K'."""
+    n = int(n or 0)
+    for div, suffix in ((1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K")):
+        if n >= div:
+            v = n / div
+            return f"{v:.1f}".rstrip("0").rstrip(".") + suffix if v < 10 else f"{v:.0f}{suffix}"
+    return str(n)
+
+
 def ui_theme() -> str:
     """The configured theme, rendered server-side into <html data-theme> (no flash on load)."""
     try:
@@ -89,5 +99,5 @@ def ui_theme() -> str:
         return "dark"
 
 
-templates.env.filters.update(duration=_duration, hours=_hours, stars=_stars, ago=_ago, num=_num)
+templates.env.filters.update(duration=_duration, hours=_hours, stars=_stars, ago=_ago, num=_num, compact=_compact)
 templates.env.globals.update(version=__version__, ui_theme=ui_theme)

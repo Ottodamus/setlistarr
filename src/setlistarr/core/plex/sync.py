@@ -138,6 +138,7 @@ def _track_row(t: dict, section_id: int) -> tuple:
         _jtags(t, "Mood"),
         section_id,
         _iso(t.get("updatedAt")),
+        t.get("ratingCount"),
     )
 
 
@@ -157,7 +158,7 @@ _UPSERT_ALBUM = (
 _TRACK_COLS = (
     "plex_key,title,artist_key,artist_name,track_artist,album_key,album_title,track_num,disc_num,"
     "year,duration_ms,user_rating,critic_rating,play_count,skip_count,last_played_at,added_at,"
-    "codec,bitrate,file_path,genres,moods,section_id,plex_updated_at"
+    "codec,bitrate,file_path,genres,moods,section_id,plex_updated_at,listeners"
 )
 _UPSERT_TRACK = (
     f"INSERT INTO tracks({_TRACK_COLS}) VALUES({','.join('?' * len(_TRACK_COLS.split(',')))}) "

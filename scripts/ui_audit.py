@@ -48,9 +48,9 @@ for i in range(40):
     t, a, al = LONG[i % len(LONG)]
     conn.execute(
         "INSERT INTO tracks(plex_key, title, artist_name, artist_key, track_artist, album_title, year, duration_ms, "
-        "section_id, play_count, user_rating) VALUES(?,?,?,?,?,?,?,?,11,?,?)",
+        "section_id, play_count, user_rating, listeners) VALUES(?,?,?,?,?,?,?,?,11,?,?,?)",
         (str(1000 + i), f"{t} {i}", a, f"artist-{i % len(LONG)}", a, al, 1990 + i % 30, 200_000 + i * 1000, i % 7,
-         8 if i % 3 else None))
+         8 if i % 3 else None, (i * 97_531) % 3_100_000 if i % 4 else None))
     conn.execute("INSERT INTO track_tags(track_id, source, tag) VALUES(?, 'plex-genre', 'alternative/indie rock')", (i + 1,))
 for pk, title in [("901", "Road Trip Mix"), ("902", "Late Night Coding Session Deep Focus Instrumentals"),
                   ("903", "Gym"), ("904", "Sunday Morning Coffee & Crossword Vibes")]:

@@ -39,7 +39,7 @@ git-ignored - never in this file.
 - **Single uvicorn worker.** The scheduler is in-process; more workers = duplicate jobs.
 - **Library-writing jobs go through `services.jobs.run_job`** (shared lock + `jobs` row).
 - **DB: raw `sqlite3`, no ORM.** Schema changes = new `core/migrations/NNNN_name.sql`, tracked by
-  `PRAGMA user_version`. Never edit a migration that has shipped (0001-0010 have now shipped).
+  `PRAGMA user_version`. Never edit a migration that has shipped (0001-0011 have now shipped).
 - **No python-plexapi.** Its partial objects silently reload per item when an attribute is None
   (N+1 requests during sync). Use `core/plex/client.PlexClient` (httpx, JSON). When adding a new
   Plex endpoint, check python-plexapi's source for the exact request shape first, don't guess.
@@ -100,6 +100,8 @@ git-ignored - never in this file.
 - `track_tags` is the single tag vocabulary the model filters on. Sources: `plex-genre|plex-style|
   plex-mood` (rebuilt by sync from artist+album+track tags) and `lastfm-artist|lastfm-track|
   musicbrainz` (from enrich, never touched by sync).
+- `tracks.listeners` = Plex `ratingCount` (Last.fm listener count Plex fetches; NULL if none). The Discover
+  song picker falls back to Last.fm `artist.getTopTracks` matched by `discover._title_key`.
 - Tracks gone from Plex are soft-deleted (`removed_at`) so history/drafts still render.
 - Incremental sync = `updatedAt>>` + `lastViewedAt>>` (plays don't bump updatedAt) with a 5 min
   overlap; then a count check escalates to full sync if Plex has fewer tracks than we do.

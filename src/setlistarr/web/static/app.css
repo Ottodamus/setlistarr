@@ -171,6 +171,9 @@ input:disabled { opacity: .6; }
 .pager { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
 .btn.danger-text { color: var(--error); }
 .show-sm { display: none; }
+.pop { display: inline-flex; align-items: center; gap: 6px; }
+.pop-bar { display: inline-block; width: 64px; height: 6px; border-radius: 3px; background: var(--bg-elev-2); overflow: hidden; }
+.pop-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 .empty { padding: 40px; text-align: center; color: var(--text-dim); }
 .htmx-request .spin, .spin.htmx-request { display: inline-block; }
 .spin { display: none; width: 12px; height: 12px; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; animation: rot .7s linear infinite; }

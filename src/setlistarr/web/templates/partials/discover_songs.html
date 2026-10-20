@@ -2,24 +2,29 @@
       hx-indicator="#songs-spin" hx-disabled-elt="find button">
   <h3 style="margin:12px 0 4px">Songs by {{ d.artist_name }} for {{ playlist_title }}</h3>
   <div class="help" style="margin-bottom:8px">
-    Ticked songs are {{ 'in the playlist' if has_playlist else 'what the playlist will start with' }}. Saving updates
+    Most popular first. Ticked songs are {{ 'in the playlist' if has_playlist else 'what the playlist will start with' }}. Saving updates
     {{ playlist_title }} in Plex right away; the rest of the playlist and its cover stay as they are. Your picks are kept
     on every rebuild for the next {{ window }} week{{ 's' if window|int != 1 }} and never trimmed.
     {% if not d.picked_at %}Right now Setlistarr picks up to 3 automatically.{% endif %}
   </div>
   {% if tracks %}
   <div class="table-wrap"><table class="small">
-    <thead><tr><th style="width:2em"></th><th>Song</th><th class="hide-sm">Album</th><th class="num">Length</th><th class="hide-sm">Plays</th></tr></thead>
+    <thead><tr><th style="width:2em"></th><th>Song</th><th class="hide-sm">Album</th><th class="num">Length</th><th title="Listeners on Last.fm - the bar is relative to this artist's most popular song">Popularity</th></tr></thead>
     <tbody>
     {% for t in tracks %}
       <tr><td class="nowrap"><input type="checkbox" name="k" value="{{ t.plex_key }}" id="song-{{ t.plex_key }}" {{ 'checked' if t.in_playlist }}></td>
         <td><label for="song-{{ t.plex_key }}">{{ t.title }}</label>{% if t.in_playlist %} <span class="badge ok">in playlist</span>{% endif %}</td>
         <td class="hide-sm dim">{{ t.album_title }}{% if t.year %} ({{ t.year }}){% endif %}</td>
         <td class="num dim">{{ t.duration_ms|duration }}</td>
-        <td class="hide-sm dim">{{ t.play_count or 0 }}</td></tr>
+        <td class="nowrap">{% if t.listeners is not none %}<span class="pop" title="{{ t.listeners|num }} listeners on Last.fm (via {{ t.popularity_source }})">
+            <span class="pop-bar"><span style="width:{{ [t.popularity_pct, 3]|max }}%"></span></span>
+            <span class="dim small">{{ t.listeners|compact }}</span></span>{% else %}<span class="dim small" title="No listener count from Plex or Last.fm for this song">–</span>{% endif %}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
+  {% if not any_popularity %}<div class="help" style="margin-top:6px">No popularity yet: Plex adds listener counts when it
+    refreshes the album's metadata, and Setlistarr picks them up on its next full sync{% if not lastfm_ready %} (or add a Last.fm
+    API key under Settings → Enrichment to look them up directly){% endif %}.</div>{% endif %}
   {% else %}<div class="dim small">No tracks by this artist are in the library any more.</div>{% endif %}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
     <button class="btn primary" type="submit" {{ 'disabled' if not tracks }}>Update {{ playlist_title }}</button>

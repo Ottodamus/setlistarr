@@ -142,13 +142,14 @@ def song_picker(discovery_id: int, request: Request, conn: sqlite3.Connection = 
         return templates.TemplateResponse(request, "partials/alert.html",
                                           {"level": "error", "message": "That artist hasn't arrived in Plex."})
     in_pl = svc.playlist_keys(conn)
-    tracks = svc.artist_tracks(conn, d)
+    tracks = svc.with_popularity(conn, d, svc.artist_tracks(conn, d))
     for t in tracks:
         t["in_playlist"] = t["plex_key"] in in_pl
     s = Settings(conn)
     return templates.TemplateResponse(request, "partials/discover_songs.html", {
         "d": dict(d), "tracks": tracks, "playlist_title": svc.playlist_title(s),
-        "has_playlist": bool(get_meta(conn, "discover_draft_id")), "window": s.get("discover_window_weeks")})
+        "has_playlist": bool(get_meta(conn, "discover_draft_id")), "window": s.get("discover_window_weeks"),
+        "any_popularity": any(t["listeners"] for t in tracks), "lastfm_ready": bool(s.get("lastfm_api_key"))})
 
 
 @router.post("/discover/{discovery_id}/songs")

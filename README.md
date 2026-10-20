@@ -250,7 +250,10 @@ match what you play most, so it's never empty while downloads are pending. Artis
 same one doesn't play twice in a row. Open it from the Discover page to edit it or change its cover.
 
 **Pick songs** next to an artist under *Arrived in Plex* lets you choose which of their songs go into the
-playlist. Saving updates it in Plex straight away (the rest of the playlist and its cover stay as they are),
+playlist. Songs are listed most popular first, with a bar showing Last.fm listeners relative to the artist's
+best-known song - from Plex's own metadata (what drives *Popular tracks* in Plexamp), or Last.fm's top tracks
+when Plex has no count yet (needs the Last.fm key). Brand-new albums get Plex's counts once Plex refreshes their
+metadata and Setlistarr runs its daily full sync. Saving updates it in Plex straight away (the rest of the playlist and its cover stay as they are),
 and later rebuilds keep exactly your picks - never trimmed - for as long as the arrivals window (counted from
 when you picked them). **Back to automatic** returns that artist to the 3 songs Setlistarr picks itself.
 
@@ -348,7 +351,10 @@ broken (Docker's health check uses it). Signed-in users get DB, Plex and schedul
 | Discover: "Couldn't identify this artist on MusicBrainz" | The name didn't match a MusicBrainz artist closely enough; block it, or add the artist in Lidarr yourself. |
 | Discover: ListenBrainz "no recommendations yet" | Keep *Send my Plex plays* on; ListenBrainz needs a few weeks of history. Use the Last.fm source meanwhile. |
 | Discover: an artist stays in "Sent to Lidarr" | Lidarr hasn't downloaded it yet, or Plex hasn't picked it up - check Lidarr's queue, then click **Pick songs** next to an artist under *Arrived in Plex* lets you choose which of their songs go into the
-playlist. Saving updates it in Plex straight away (the rest of the playlist and its cover stay as they are),
+playlist. Songs are listed most popular first, with a bar showing Last.fm listeners relative to the artist's
+best-known song - from Plex's own metadata (what drives *Popular tracks* in Plexamp), or Last.fm's top tracks
+when Plex has no count yet (needs the Last.fm key). Brand-new albums get Plex's counts once Plex refreshes their
+metadata and Setlistarr runs its daily full sync. Saving updates it in Plex straight away (the rest of the playlist and its cover stay as they are),
 and later rebuilds keep exactly your picks - never trimmed - for as long as the arrivals window (counted from
 when you picked them). **Back to automatic** returns that artist to the 3 songs Setlistarr picks itself.
 

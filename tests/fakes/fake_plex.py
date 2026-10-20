@@ -47,7 +47,7 @@ class FakePlex:
         }
 
     def add_track(self, key, album_key, title, *, duration=200_000, track_artist=None, moods=(),
-                  views=0, rating=None, section=1, updated=None, index=1):
+                  views=0, rating=None, section=1, updated=None, index=1, listeners=None):
         album = self.items[str(album_key)]
         artist = self.items[album["parentRatingKey"]]
         t = {
@@ -58,6 +58,8 @@ class FakePlex:
             "updatedAt": updated or self.now, "_full": {"Mood": [{"tag": m} for m in moods]},
             "Media": [{"audioCodec": "flac", "bitrate": 900, "Part": [{"file": f"/music/{key}.flac"}]}],
         }
+        if listeners is not None:
+            t["ratingCount"] = listeners
         if track_artist:
             t["originalTitle"] = track_artist
         if rating is not None:

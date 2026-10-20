@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import re
 import sqlite3
 import threading
 from collections import Counter, defaultdict
@@ -357,12 +358,58 @@ _BY_ARTIST_SQL = "(LOWER(t.artist_name) = LOWER(?) OR LOWER(COALESCE(t.track_art
 def artist_tracks(conn: sqlite3.Connection, d) -> list[dict]:
     """The arrived artist's live tracks, the album sent to Lidarr first."""
     return [dict(r) for r in conn.execute(
-        f"""SELECT t.plex_key, t.title, t.album_title, t.year, t.duration_ms, t.play_count,
+        f"""SELECT t.plex_key, t.title, t.album_title, t.year, t.duration_ms, t.play_count, t.listeners,
                    COALESCE(t.track_artist, t.artist_name) AS artist FROM tracks t
             WHERE {LIVE_TRACK_SQL} AND {_BY_ARTIST_SQL}
             ORDER BY (LOWER(t.album_title) = LOWER(COALESCE(?, ''))) DESC, t.year DESC NULLS LAST,
                      t.album_title, t.disc_num, t.track_num""",
         (d["artist_name"], d["artist_name"], d["album_title"]))]
+
+
+_TITLE_JUNK = re.compile(r"\s*(\(|\[|\s-\s).*?(remaster|version|edit|mix|mono|stereo|live|deluxe|bonus|explicit).*$", re.I)
+
+
+def _title_key(title: str) -> str:
+    """'Seagull (2001 Remaster)' / 'Seagull - Remastered' / 'Seagull' -> 'seagull'; curly quotes don't matter."""
+    t = _TITLE_JUNK.sub("", title or "")
+    return re.sub(r"[^\w]+", "", t.lower())
+
+
+def lastfm_listeners(conn: sqlite3.Connection, artist_name: str) -> dict[str, int]:
+    """Listener counts for the artist's top tracks on Last.fm, keyed by _title_key. {} without an API key."""
+    http, cfg = _http(conn)
+    if not cfg.lastfm_api_key:
+        return {}
+    data = http.get_json(LASTFM_ROOT, {"method": "artist.gettoptracks", "artist": artist_name, "autocorrect": 1,
+                                       "api_key": cfg.lastfm_api_key, "format": "json", "limit": 200})
+    out: dict[str, int] = {}
+    for tr in ((data or {}).get("toptracks") or {}).get("track") or []:
+        try:
+            out.setdefault(_title_key(tr.get("name") or ""), int(tr.get("listeners") or 0))
+        except (TypeError, ValueError):
+            continue
+    out.pop("", None)
+    return out
+
+
+def with_popularity(conn: sqlite3.Connection, d, tracks: list[dict]) -> list[dict]:
+    """Adds listeners/popularity_source/popularity_pct (vs the artist's most popular song) and sorts most
+    popular first. Plex's own count (Last.fm listeners) when it has one, else Last.fm's top tracks."""
+    for t in tracks:
+        t["popularity_source"] = "Plex" if t.get("listeners") is not None else None
+    if any(t["listeners"] is None for t in tracks):
+        try:
+            lfm = lastfm_listeners(conn, d["artist_name"])
+        except Exception as e:  # popularity is decoration: never break the picker
+            log.info("discover.lastfm_toptracks_failed", artist=d["artist_name"], error=str(e))
+            lfm = {}
+        for t in tracks:
+            if t["listeners"] is None and _title_key(t["title"]) in lfm:
+                t["listeners"], t["popularity_source"] = lfm[_title_key(t["title"])], "Last.fm"
+    top = max((t["listeners"] or 0 for t in tracks), default=0)
+    for t in tracks:
+        t["popularity_pct"] = round(100 * (t["listeners"] or 0) / top) if top else 0
+    return sorted(tracks, key=lambda t: -(t["listeners"] if t["listeners"] is not None else -1))
 
 
 def _auto_tracks(conn: sqlite3.Connection, d) -> list[dict]:
